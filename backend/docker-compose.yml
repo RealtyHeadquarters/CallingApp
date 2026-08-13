@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: callingapp-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: callingapp
+      POSTGRES_PASSWORD: callingapp
+      POSTGRES_DB: callingapp
+    ports:
+      - "5432:5432"
+    volumes:
+      - callingapp_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U callingapp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  callingapp_pgdata:

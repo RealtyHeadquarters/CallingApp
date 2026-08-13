@@ -1,0 +1,306 @@
+// CallingApp — RUNO-inspired Business Calling + CRM
+// Database schema. Mirrors spec section 41 (DATABASE STRUCTURE).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ───────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  MANAGER
+  AGENT
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// Live agent presence (spec §37)
+enum AgentStatus {
+  AVAILABLE
+  ON_CALL
+  AWAY
+  OFFLINE
+}
+
+enum LeadStatus {
+  NEW
+  ASSIGNED
+  CONTACTED
+  INTERESTED
+  FOLLOW_UP
+  MEETING_SCHEDULED
+  CONVERTED
+  NOT_INTERESTED
+  LOST
+}
+
+// Detailed call status (spec §9). Answered vs Unanswered is derived:
+// ANSWERED => answered; everything else => unanswered.
+enum CallStatus {
+  ANSWERED
+  NO_ANSWER
+  BUSY
+  REJECTED
+  FAILED
+  CANCELLED
+}
+
+// Standardized dispositions (spec §14)
+enum Disposition {
+  INTERESTED
+  NOT_INTERESTED
+  FOLLOW_UP_REQUIRED
+  CALL_BACK_LATER
+  MEETING_REQUIRED
+  PRICE_DISCUSSION
+  DETAILS_SHARED
+  CONVERTED
+  WRONG_NUMBER
+  BUSY
+  NO_RESPONSE
+  OTHER
+}
+
+enum FollowUpType {
+  CALL
+  MEETING
+  WHATSAPP
+  EMAIL
+  OTHER
+}
+
+enum FollowUpStatus {
+  PENDING
+  COMPLETED
+  MISSED
+  CANCELLED
+}
+
+enum TeamStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// ── Models ──────────────────────────────────────────────
+
+model User {
+  id                    String        @id @default(cuid())
+  name                  String
+  email                 String        @unique
+  mobile                String        @unique
+  passwordHash          String        @map("password_hash")
+  role                  Role          @default(AGENT)
+  status                AccountStatus @default(ACTIVE)
+  agentStatus           AgentStatus   @default(OFFLINE) @map("agent_status")
+
+  // Optional calling targets (spec §29) — not mandatory
+  dailyCallTarget       Int?          @map("daily_call_target")
+  dailyTalktimeTarget   Int?          @map("daily_talktime_target") // seconds
+
+  teamId                String?       @map("team_id")
+  team                  Team?         @relation("TeamMembers", fields: [teamId], references: [id], onDelete: SetNull)
+
+  managedTeams          Team[]        @relation("TeamManager")
+  assignedLeads         Client[]      @relation("AssignedAgent")
+  calls                 Call[]
+  followUps             FollowUp[]
+  auditLogs             AuditLog[]
+  notifications         Notification[]
+  passwordResetTokens   PasswordResetToken[]
+
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  @@index([role])
+  @@index([teamId])
+  @@map("users")
+}
+
+model Team {
+  id         String     @id @default(cuid())
+  name       String
+  managerId  String?    @map("manager_id")
+  manager    User?      @relation("TeamManager", fields: [managerId], references: [id], onDelete: SetNull)
+  status     TeamStatus @default(ACTIVE)
+
+  members    User[]     @relation("TeamMembers")
+  clients    Client[]
+
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @updatedAt @map("updated_at")
+
+  @@index([managerId])
+  @@map("teams")
+}
+
+model Client {
+  id              String     @id @default(cuid())
+  leadId          String     @unique @map("lead_id") // human-readable, e.g. LEAD-000123
+  name            String
+  mobile          String     @unique
+  alternateMobile String?    @map("alternate_mobile")
+  email           String?
+  company         String?
+  source          String?
+  leadStatus      LeadStatus @default(NEW) @map("lead_status")
+
+  assignedUserId  String?    @map("assigned_user_id")
+  assignedUser    User?      @relation("AssignedAgent", fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  teamId          String?    @map("team_id")
+  team            Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  calls           Call[]
+  followUps       FollowUp[]
+
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  @@index([assignedUserId])
+  @@index([teamId])
+  @@index([leadStatus])
+  @@index([mobile])
+  @@map("clients")
+}
+
+model Call {
+  id              String       @id @default(cuid())
+  callId          String       @unique @map("call_id") // CALL-YYYYMMDD-000001
+
+  userId          String       @map("user_id")
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  clientId        String?      @map("client_id")
+  client          Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  phoneNumber     String       @map("phone_number")
+
+  callStartTime   DateTime?    @map("call_start_time")
+  callAnswerTime  DateTime?    @map("call_answer_time")
+  callEndTime     DateTime?    @map("call_end_time")
+  durationSeconds Int          @default(0) @map("duration_seconds")
+
+  callStatus      CallStatus?  @map("call_status")
+  disposition     Disposition?
+  remark          String?
+  recordingUrl    String?      @map("recording_url")
+
+  followUps       FollowUp[]
+
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([callStatus])
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@map("calls")
+}
+
+model FollowUp {
+  id           String         @id @default(cuid())
+
+  clientId     String         @map("client_id")
+  client       Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  callId       String?        @map("call_id")
+  call         Call?          @relation(fields: [callId], references: [id], onDelete: SetNull)
+
+  userId       String         @map("user_id")
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Spec splits date & time; we store a single instant for easy querying.
+  followupAt   DateTime       @map("followup_at")
+  followupType FollowUpType   @default(CALL) @map("followup_type")
+  note           String?
+  status         FollowUpStatus @default(PENDING)
+  reminderSent   Boolean        @default(false) @map("reminder_sent")
+  overdueNotified Boolean       @default(false) @map("overdue_notified")
+
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([clientId])
+  @@index([status])
+  @@index([followupAt])
+  @@index([userId, status, followupAt])
+  @@map("follow_ups")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?  @map("user_id")
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  description String?
+  ipAddress   String?  @map("ip_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// Password reset tokens (spec §4 Forgot Password). Only a hash is stored.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// Monotonic per-day counter for generating Call IDs (spec §40).
+model Counter {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("counters")
+}
+
+// In-app notifications (spec §45). Delivery channel is in-app now; the same
+// records can later fan out to push (FCM) without schema changes.
+enum NotificationType {
+  FOLLOWUP_REMINDER
+  FOLLOWUP_OVERDUE
+  LEAD_ASSIGNED
+  DAILY_TARGET
+  DAILY_SUMMARY
+  MISSED_FOLLOWUPS
+}
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String           @map("user_id")
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       NotificationType
+  title      String
+  body       String?
+  entityType String?          @map("entity_type")
+  entityId   String?          @map("entity_id")
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}

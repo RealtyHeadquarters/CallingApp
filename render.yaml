@@ -1,0 +1,27 @@
+# Render Blueprint — free deploy of the CallingApp Node backend.
+# New Web Service → "Blueprint" → point at this repo; Render reads this file.
+# Set DATABASE_URL (Neon) + CORS_ORIGINS in the dashboard (marked sync:false).
+services:
+  - type: web
+    name: callingapp-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate
+    # migrate deploy is idempotent; runs each boot so schema stays current.
+    startCommand: npx prisma migrate deploy && node src/server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: TELEPHONY_WEBHOOK_SECRET
+        generateValue: true

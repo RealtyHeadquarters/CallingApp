@@ -1,0 +1,12 @@
+rules_version = '2';
+
+// All data access goes through the Cloud Functions API (Admin SDK, which bypasses
+// these rules). Direct client access to Firestore is denied — this enforces the
+// same RBAC/validation the Express API applies, from one place.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
