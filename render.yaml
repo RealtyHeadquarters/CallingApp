@@ -8,8 +8,9 @@ services:
     plan: free
     rootDir: backend
     buildCommand: npm install && npx prisma generate
-    # migrate deploy is idempotent; runs each boot so schema stays current.
-    startCommand: npx prisma migrate deploy && node src/server.js
+    # Schema is managed with `prisma db push` from local against Neon (persistent),
+    # so boot just starts the server (fast, no cold-boot schema work).
+    startCommand: node src/server.js
     healthCheckPath: /health
     autoDeploy: true
     envVars:
