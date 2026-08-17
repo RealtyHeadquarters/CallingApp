@@ -11,6 +11,7 @@ import 'leads_screen.dart';
 import 'call_history_screen.dart';
 import 'followups_screen.dart';
 import 'notifications_screen.dart';
+import 'call_flow.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +22,16 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // If a call was in progress when the app was last killed (common on MIUI),
+    // finish its disposition/remark now that we're back.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) completePendingCall(context);
+    });
+  }
 
   final _pages = const [
     DashboardScreen(),

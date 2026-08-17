@@ -10,10 +10,12 @@ class ApiClient {
   static const _tokenKey = 'token';
   String? _token;
 
+  // Generous timeouts: the free Render backend cold-starts (~50s) after idle.
   late final Dio dio = Dio(BaseOptions(
     baseUrl: AppConfig.apiBaseUrl,
-    connectTimeout: const Duration(seconds: 15),
-    receiveTimeout: const Duration(seconds: 20),
+    connectTimeout: const Duration(seconds: 70),
+    receiveTimeout: const Duration(seconds: 70),
+    sendTimeout: const Duration(seconds: 70),
   ))
     ..interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) {

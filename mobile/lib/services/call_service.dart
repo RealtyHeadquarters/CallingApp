@@ -102,16 +102,33 @@ class CallService {
     });
   }
 
-  /// Submit the mandatory disposition + remark (spec §14/§15).
+  /// Persist a manually-entered/confirmed outcome (fallback when the device
+  /// call log can't be read — permissions or OEM restrictions).
+  Future<void> completeManual(
+    String callDbId, {
+    required String callStatus,
+    required int durationSeconds,
+  }) async {
+    final answered = callStatus == 'ANSWERED';
+    await _api.dio.patch('/calls/$callDbId/complete', data: {
+      'callStatus': callStatus,
+      'durationSeconds': answered ? durationSeconds : 0,
+      'callEndTime': DateTime.now().toIso8601String(),
+    });
+  }
+
+  /// Submit the mandatory disposition + remark + optional customer name (spec §14/§15).
   Future<void> submitDisposition(
     String callDbId, {
     required String disposition,
     required String remark,
+    String? customerName,
     String? leadStatus,
   }) async {
     await _api.dio.patch('/calls/$callDbId/disposition', data: {
       'disposition': disposition,
       'remark': remark,
+      if (customerName != null) 'customerName': customerName,
       if (leadStatus != null) 'leadStatus': leadStatus,
     });
   }

@@ -77,7 +77,9 @@ export default function Calls() {
                     <td>
                       {c.client
                         ? <span className="link" onClick={() => navigate(`/leads/${c.client.id}`)}>{c.client.name}</span>
-                        : <span className="muted">Unknown</span>}
+                        : c.customerName
+                          ? c.customerName
+                          : <span className="muted">Unknown</span>}
                     </td>
                     <td>{c.phoneNumber}</td>
                     <td><Badge status={c.callStatus || 'CANCELLED'} /></td>

@@ -1,32 +1,29 @@
 import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/call_service.dart';
+import '../services/pending_call.dart';
 import 'disposition_screen.dart';
 
 /// Shared SIM-call orchestration (spec §8/§18): request permissions, create the
-/// backend record, place the call via the native dialer, then — when the user
-/// returns to the app — capture the outcome from the device call log and open
-/// the disposition/remark flow.
+/// backend record, persist a "pending call" to disk, then place the call via the
+/// native dialer. When the app comes back — on resume OR on next startup (the app
+/// is often killed mid-call on MIUI/HyperOS) — the pending call is reconciled and
+/// the disposition/remark screen opens.
 ///
-/// Host must:
-///   1. mix in `WidgetsBindingObserver` too,
-///   2. add/remove `this` as an observer in initState/dispose,
-///   3. forward `didChangeAppLifecycleState` to [handleCallResume].
+/// Host must mix in `WidgetsBindingObserver`, register/unregister as an observer,
+/// and forward `didChangeAppLifecycleState` to [handleCallResume].
 mixin CallFlowMixin<T extends StatefulWidget> on State<T> {
   final CallService callService = CallService();
-
-  String? _pendingCallId;
-  String? _pendingNumber;
-  String? _pendingClientId;
-  DateTime? _pendingStart;
   bool callFlowBusy = false;
 
   /// Override to reset host UI after a completed call flow.
   void onCallFlowDone() {}
 
   void handleCallResume(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && _pendingCallId != null) {
-      _finishPendingCall();
+    if (state == AppLifecycleState.resumed) {
+      completePendingCall(context).then((done) {
+        if (done && mounted) onCallFlowDone();
+      });
     }
   }
 
@@ -36,52 +33,75 @@ mixin CallFlowMixin<T extends StatefulWidget> on State<T> {
     try {
       final granted = await callService.ensurePermissions();
       if (!granted) {
-        _snack('Phone permission is required to place and track calls.');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Phone permission is required to place and track calls.')),
+          );
+        }
         return;
       }
       final start = DateTime.now();
       final created = await callService.initiate(number, clientId: clientId);
-      _pendingCallId = created['id'];
-      _pendingNumber = number;
-      _pendingClientId = clientId;
-      _pendingStart = start;
+      // Persist BEFORE dialing so a mid-call app kill doesn't lose it.
+      await PendingCallStore.save(PendingCall(
+        callDbId: created['id'],
+        phoneNumber: number,
+        clientId: clientId,
+        start: start,
+      ));
+      debugPrint('[CallFlow] initiated + pending saved: ${created['id']} -> $number');
       await callService.placeCall(number);
     } catch (e) {
-      _snack(apiErrorMessage(e));
-      _pendingCallId = null;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      }
     } finally {
       if (mounted) setState(() => callFlowBusy = false);
     }
   }
+}
 
-  Future<void> _finishPendingCall() async {
-    final callId = _pendingCallId!;
-    final number = _pendingNumber!;
-    final clientId = _pendingClientId;
-    final start = _pendingStart!;
-    _pendingCallId = null; // consume once
+// Re-entrancy guard so resume + startup don't both open the screen.
+bool _reconciling = false;
 
+/// If a pending call exists, best-effort capture its outcome from the device call
+/// log, then open the disposition/remark screen. Returns true if one was handled.
+/// Safe to call from anywhere (resume, startup); no-op if nothing is pending.
+Future<bool> completePendingCall(BuildContext context) async {
+  if (_reconciling) return false;
+  final pending = await PendingCallStore.get();
+  if (pending == null) {
+    debugPrint('[CallFlow] reconcile: no pending call');
+    return false;
+  }
+
+  _reconciling = true;
+  try {
+    debugPrint('[CallFlow] reconcile: opening disposition for ${pending.callDbId}');
+    final call = CallService();
     CallOutcome? outcome;
     try {
-      outcome = await callService.captureFromCallLog(number, start);
-      if (outcome != null) await callService.complete(callId, outcome);
-    } catch (_) {/* fall through to manual entry */}
+      outcome = await call.captureFromCallLog(pending.phoneNumber, pending.start);
+      debugPrint('[CallFlow] call-log capture: ${outcome?.callStatus} ${outcome?.durationSeconds}s');
+    } catch (e) {
+      debugPrint('[CallFlow] call-log capture failed (manual entry): $e');
+    }
 
-    if (!mounted) return;
-    await Navigator.of(context).push<bool>(
+    if (!context.mounted) return false;
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => DispositionScreen(
-          callDbId: callId,
-          clientId: clientId,
-          phoneNumber: number,
+          callDbId: pending.callDbId,
+          clientId: pending.clientId,
+          phoneNumber: pending.phoneNumber,
           outcome: outcome,
         ),
       ),
     );
-    if (mounted) onCallFlowDone();
-  }
-
-  void _snack(String m) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    // Clear regardless of submit/cancel so it doesn't nag on every app open.
+    await PendingCallStore.clear();
+    return true;
+  } finally {
+    _reconciling = false;
   }
 }

@@ -11,6 +11,8 @@ const _dispositions = [
   'WRONG_NUMBER', 'BUSY', 'NO_RESPONSE', 'OTHER',
 ];
 
+const _callStatuses = ['ANSWERED', 'NO_ANSWER', 'BUSY', 'REJECTED', 'FAILED'];
+
 class DispositionScreen extends StatefulWidget {
   final String callDbId;
   final String? clientId;
@@ -32,7 +34,12 @@ class DispositionScreen extends StatefulWidget {
 class _DispositionScreenState extends State<DispositionScreen> {
   final _call = CallService();
   final _remark = TextEditingController();
+  final _customerName = TextEditingController();
   String _disposition = 'INTERESTED';
+  late String _callStatus;
+  // Duration comes ONLY from the device call log — never editable (so talk time
+  // stays trustworthy and can't be inflated).
+  late final int _capturedDuration;
   bool _scheduleFollowUp = false;
   String? _quick; // quick option key
   DateTime? _customTime;
@@ -40,9 +47,24 @@ class _DispositionScreenState extends State<DispositionScreen> {
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _callStatus = widget.outcome?.callStatus ?? 'ANSWERED';
+    _capturedDuration = widget.outcome?.durationSeconds ?? 0;
+  }
+
+  @override
   void dispose() {
     _remark.dispose();
+    _customerName.dispose();
     super.dispose();
+  }
+
+  String get _durationLabel {
+    final s = _capturedDuration;
+    final m = (s ~/ 60).toString().padLeft(2, '0');
+    final sec = (s % 60).toString().padLeft(2, '0');
+    return '$m:$sec';
   }
 
   Future<void> _submit() async {
@@ -52,11 +74,22 @@ class _DispositionScreenState extends State<DispositionScreen> {
     }
     setState(() { _busy = true; _error = null; });
     try {
+      debugPrint('[Disposition] submit: call=${widget.callDbId} status=$_callStatus dur=$_capturedDuration disp=$_disposition');
+      // 1) Save the call outcome — duration is the auto-captured value (read-only).
+      await _call.completeManual(
+        widget.callDbId,
+        callStatus: _callStatus,
+        durationSeconds: _capturedDuration,
+      );
+      debugPrint('[Disposition] complete OK');
+      // 2) Save disposition + mandatory remark + optional customer name.
       await _call.submitDisposition(
         widget.callDbId,
         disposition: _disposition,
         remark: _remark.text.trim(),
+        customerName: _customerName.text.trim().isEmpty ? null : _customerName.text.trim(),
       );
+      debugPrint('[Disposition] disposition OK');
       if (_scheduleFollowUp && widget.clientId != null) {
         await ApiClient.instance.dio.post('/follow-ups', data: {
           'clientId': widget.clientId,
@@ -78,37 +111,92 @@ class _DispositionScreenState extends State<DispositionScreen> {
   @override
   Widget build(BuildContext context) {
     final o = widget.outcome;
+    final answered = _callStatus == 'ANSWERED';
     return Scaffold(
       appBar: AppBar(title: const Text('Call Completed')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Outcome summary
+          // Outcome header
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(widget.phoneNumber, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                      const SizedBox(height: 4),
-                      Text(
-                        o == null
-                            ? 'Outcome not captured automatically'
-                            : 'Duration: ${_fmt(o.durationSeconds)}',
-                        style: const TextStyle(color: AppColors.text2),
-                      ),
-                    ],
+                  const Icon(Icons.phone_in_talk, color: AppColors.brand),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(widget.phoneNumber, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
+                  Text(
+                    o == null ? 'Confirm below' : 'Auto-captured',
+                    style: const TextStyle(color: AppColors.text3, fontSize: 12),
                   ),
-                  StatusBadge(o?.callStatus ?? 'NO_ANSWER'),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 20),
+
+          // Call status + duration. Status can be confirmed; duration is
+          // read-only (auto-captured from the call log — cannot be edited).
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Call Status', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      initialValue: _callStatus,
+                      items: _callStatuses.map((s) => DropdownMenuItem(value: s, child: Text(titleCase(s)))).toList(),
+                      onChanged: (v) => setState(() => _callStatus = v!),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Talk Time', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    Container(
+                      height: 48,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF0F5),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.lock_outline, size: 15, color: AppColors.text3),
+                          const SizedBox(width: 6),
+                          Text(answered ? _durationLabel : '00:00',
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Customer name — names an unknown number and creates/links a CRM lead.
+          const Text('Customer Name', style: TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _customerName,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(hintText: 'e.g. Rahul Sharma'),
+          ),
+          const SizedBox(height: 16),
 
           const Text('Call Disposition', style: TextStyle(fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
@@ -202,11 +290,5 @@ class _DispositionScreenState extends State<DispositionScreen> {
       _customTime = DateTime(date.year, date.month, date.day, time.hour, time.minute);
       _quick = null;
     });
-  }
-
-  String _fmt(int s) {
-    final m = (s ~/ 60).toString().padLeft(2, '0');
-    final sec = (s % 60).toString().padLeft(2, '0');
-    return '$m:$sec';
   }
 }

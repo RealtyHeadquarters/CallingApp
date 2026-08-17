@@ -183,6 +183,7 @@ model Call {
   client          Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
   phoneNumber     String       @map("phone_number")
+  customerName    String?      @map("customer_name")
 
   callStartTime   DateTime?    @map("call_start_time")
   callAnswerTime  DateTime?    @map("call_answer_time")

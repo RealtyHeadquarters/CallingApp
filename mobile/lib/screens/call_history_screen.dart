@@ -57,7 +57,7 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
                 size: 20,
               ),
             ),
-            title: Text(c.clientName ?? c.phoneNumber, style: const TextStyle(fontWeight: FontWeight.w600)),
+            title: Text(c.clientName ?? c.customerName ?? c.phoneNumber, style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text(
               '${DateFormat('dd MMM, hh:mm a').format(c.createdAt)} · ${c.durationFormatted}'
               '${c.remark != null ? '\n${c.remark}' : ''}',

@@ -4,12 +4,12 @@ import { ApiError } from '../../utils/apiError.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { recordAudit } from '../../utils/audit.js';
 import { parsePagination, paginated } from '../../utils/pagination.js';
-import { generateCallId } from '../../utils/ids.js';
+import { generateCallId, generateLeadId } from '../../utils/ids.js';
 import { formatDuration, dateRangeFromPreset } from '../../utils/stats.js';
 import { CALL_STATUSES, DISPOSITIONS, LEAD_STATUSES } from '../../utils/enums.js';
 
 const callSelect = {
-  id: true, callId: true, phoneNumber: true, callStatus: true, disposition: true,
+  id: true, callId: true, phoneNumber: true, customerName: true, callStatus: true, disposition: true,
   remark: true, recordingUrl: true, durationSeconds: true,
   callStartTime: true, callAnswerTime: true, callEndTime: true,
   createdAt: true, updatedAt: true,
@@ -136,22 +136,60 @@ export const logCall = asyncHandler(async (req, res) => {
 export const dispositionSchema = z.object({
   disposition: z.enum(DISPOSITIONS),
   remark: z.string().min(1, 'Remark is required'),
+  customerName: z.string().trim().optional(),
   leadStatus: z.enum(LEAD_STATUSES).optional(),
 });
 
 export const setDisposition = asyncHandler(async (req, res) => {
-  const call = await prisma.call.findFirst({ where: scopeForUser(req.user, { id: req.params.id }), select: { id: true, clientId: true } });
+  const call = await prisma.call.findFirst({
+    where: scopeForUser(req.user, { id: req.params.id }),
+    select: { id: true, clientId: true, phoneNumber: true, userId: true },
+  });
   if (!call) throw ApiError.notFound('Call not found');
+
+  const customerName = req.body.customerName?.trim() || null;
+
+  // If the agent named an unknown number, create/link a lead so the call becomes
+  // a CRM contact (spec §53). Existing leads are matched by phone to avoid dupes.
+  let clientId = call.clientId;
+  if (customerName && !clientId) {
+    const existing = await prisma.client.findFirst({ where: { mobile: call.phoneNumber }, select: { id: true } });
+    if (existing) {
+      clientId = existing.id;
+      await prisma.client.update({ where: { id: existing.id }, data: { name: customerName } });
+    } else {
+      const leadId = await generateLeadId();
+      const created = await prisma.client.create({
+        data: {
+          leadId,
+          name: customerName,
+          mobile: call.phoneNumber,
+          source: 'Call',
+          leadStatus: 'CONTACTED',
+          assignedUserId: call.userId,
+        },
+        select: { id: true },
+      });
+      clientId = created.id;
+    }
+  } else if (customerName && clientId) {
+    await prisma.client.update({ where: { id: clientId }, data: { name: customerName } });
+  }
 
   const updated = await prisma.call.update({
     where: { id: call.id },
-    data: { disposition: req.body.disposition, remark: req.body.remark },
+    data: {
+      disposition: req.body.disposition,
+      remark: req.body.remark,
+      customerName,
+      ...(clientId && clientId !== call.clientId ? { clientId } : {}),
+    },
     select: callSelect,
   });
 
   // Optionally advance the lead's status (spec §53 — call becomes CRM activity).
-  if (req.body.leadStatus && call.clientId) {
-    await prisma.client.update({ where: { id: call.clientId }, data: { leadStatus: req.body.leadStatus } });
+  if (req.body.leadStatus && clientId) {
+    await prisma.client.update({ where: { id: clientId }, data: { leadStatus: req.body.leadStatus } });
   }
 
   recordAudit(req, { action: 'CALL_DISPOSITION', entityType: 'Call', entityId: call.id, description: `${req.body.disposition}` });
@@ -187,6 +225,7 @@ export const listCalls = asyncHandler(async (req, res) => {
     where.OR = [
       { phoneNumber: { contains: q.search } },
       { callId: { contains: q.search, mode: 'insensitive' } },
+      { customerName: { contains: q.search, mode: 'insensitive' } },
       { client: { name: { contains: q.search, mode: 'insensitive' } } },
     ];
   }
