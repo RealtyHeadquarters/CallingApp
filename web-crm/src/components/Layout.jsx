@@ -23,7 +23,10 @@ const TITLES = {
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const loc = useLocation();
-  const title = TITLES[loc.pathname] || (loc.pathname.startsWith('/leads/') ? 'Lead Profile' : 'ProCallingApp');
+  const title = TITLES[loc.pathname]
+    || (loc.pathname.startsWith('/leads/') ? 'Lead Profile'
+      : loc.pathname.startsWith('/users/') ? 'Agent Detail'
+        : 'ProCallingApp');
 
   return (
     <div className="app-shell">

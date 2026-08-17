@@ -10,6 +10,7 @@ import Calls from './pages/Calls.jsx';
 import FollowUps from './pages/FollowUps.jsx';
 import Analytics from './pages/Analytics.jsx';
 import Users from './pages/Users.jsx';
+import UserDetail from './pages/UserDetail.jsx';
 import Teams from './pages/Teams.jsx';
 
 function Protected({ children }) {
@@ -30,6 +31,7 @@ export default function App() {
       <Route path="/follow-ups" element={<Protected><FollowUps /></Protected>} />
       <Route path="/analytics" element={<Protected><Analytics /></Protected>} />
       <Route path="/users" element={<Protected><Users /></Protected>} />
+      <Route path="/users/:id" element={<Protected><UserDetail /></Protected>} />
       <Route path="/teams" element={<Protected><Teams /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

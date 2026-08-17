@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api, { apiError } from '../api/client.js';
 import { Badge, Loading, Empty, Pagination } from '../components/ui.jsx';
 import ExportMenu from '../components/ExportMenu.jsx';
+import AgentFilter from '../components/AgentFilter.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { CALL_STATUSES, DISPOSITIONS, DATE_PRESETS } from '../lib/constants.js';
 import { fmtDateTime, titleCase } from '../lib/format.js';
@@ -12,7 +13,7 @@ export default function Calls() {
   const { user } = useAuth();
   const canExport = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const [state, setState] = useState({ loading: true, rows: [], pagination: null });
-  const [filters, setFilters] = useState({ callStatus: '', disposition: '', datePreset: '', search: '' });
+  const [filters, setFilters] = useState({ callStatus: '', disposition: '', datePreset: '', search: '', userId: '' });
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
 
@@ -34,6 +35,7 @@ export default function Calls() {
     <>
       <div className="toolbar">
         <input className="input grow" placeholder="Search phone, Call ID, client…" value={filters.search} onChange={setF('search')} />
+        {canExport && <AgentFilter value={filters.userId} onChange={(v) => { setPage(1); setFilters((f) => ({ ...f, userId: v })); }} />}
         <select className="select" value={filters.callStatus} onChange={setF('callStatus')}>
           <option value="">All statuses</option>
           {CALL_STATUSES.map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
@@ -49,7 +51,7 @@ export default function Calls() {
           <div style={{ marginLeft: 'auto' }}>
             <ExportMenu
               path="/exports/calls"
-              params={{ callStatus: filters.callStatus || undefined, disposition: filters.disposition || undefined, datePreset: filters.datePreset || undefined }}
+              params={{ callStatus: filters.callStatus || undefined, disposition: filters.disposition || undefined, datePreset: filters.datePreset || undefined, userId: filters.userId || undefined }}
               name="call-report"
             />
           </div>

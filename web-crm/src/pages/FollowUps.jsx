@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { apiError } from '../api/client.js';
 import { Badge, Loading, Empty, Pagination } from '../components/ui.jsx';
+import AgentFilter from '../components/AgentFilter.jsx';
+import { useAuth } from '../auth/AuthContext.jsx';
 import { fmtDateTime, titleCase } from '../lib/format.js';
 
 const SCOPES = [
@@ -15,7 +17,10 @@ const SCOPES = [
 
 export default function FollowUps() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canManage = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const [scope, setScope] = useState('today');
+  const [userId, setUserId] = useState('');
   const [state, setState] = useState({ loading: true, rows: [], pagination: null });
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
@@ -23,10 +28,10 @@ export default function FollowUps() {
   const load = useCallback(() => {
     setState((s) => ({ ...s, loading: true }));
     api
-      .get('/follow-ups', { params: { scope, page, pageSize: 20 } })
+      .get('/follow-ups', { params: { scope, page, pageSize: 20, userId: userId || undefined } })
       .then((res) => setState({ loading: false, rows: res.data.data, pagination: res.data.pagination }))
       .catch((err) => { setError(apiError(err)); setState((s) => ({ ...s, loading: false })); });
-  }, [scope, page]);
+  }, [scope, page, userId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -47,6 +52,11 @@ export default function FollowUps() {
             {s.label}
           </button>
         ))}
+        {canManage && (
+          <div style={{ marginLeft: 'auto' }}>
+            <AgentFilter value={userId} onChange={(v) => { setPage(1); setUserId(v); }} />
+          </div>
+        )}
       </div>
 
       {error && <div className="card card-pad error-text">{error}</div>}

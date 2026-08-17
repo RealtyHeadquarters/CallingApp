@@ -4,6 +4,7 @@ import api, { apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Badge, Loading, Empty, Modal, Pagination } from '../components/ui.jsx';
 import ExportMenu from '../components/ExportMenu.jsx';
+import AgentFilter from '../components/AgentFilter.jsx';
 import { LEAD_STATUSES } from '../lib/constants.js';
 import { fmtDate, titleCase } from '../lib/format.js';
 
@@ -15,6 +16,7 @@ export default function Leads() {
   const [state, setState] = useState({ loading: true, rows: [], pagination: null });
   const [search, setSearch] = useState('');
   const [leadStatus, setLeadStatus] = useState('');
+  const [assignedUserId, setAssignedUserId] = useState('');
   const [page, setPage] = useState(1);
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -23,10 +25,10 @@ export default function Leads() {
   const load = useCallback(() => {
     setState((s) => ({ ...s, loading: true }));
     api
-      .get('/leads', { params: { page, pageSize: 15, search: search || undefined, leadStatus: leadStatus || undefined } })
+      .get('/leads', { params: { page, pageSize: 15, search: search || undefined, leadStatus: leadStatus || undefined, assignedUserId: assignedUserId || undefined } })
       .then((res) => setState({ loading: false, rows: res.data.data, pagination: res.data.pagination }))
       .catch((err) => { setError(apiError(err)); setState((s) => ({ ...s, loading: false })); });
-  }, [page, search, leadStatus]);
+  }, [page, search, leadStatus, assignedUserId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -43,6 +45,7 @@ export default function Leads() {
           <option value="">All statuses</option>
           {LEAD_STATUSES.map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
         </select>
+        {canManage && <AgentFilter value={assignedUserId} onChange={(v) => { setPage(1); setAssignedUserId(v); }} allLabel="All agents" />}
         {canManage && (
           <>
             <ExportMenu path="/exports/leads" params={{ leadStatus: leadStatus || undefined }} name="leads" />

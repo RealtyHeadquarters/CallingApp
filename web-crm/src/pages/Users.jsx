@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api, { apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Badge, Loading, Empty, Modal, Pagination } from '../components/ui.jsx';
@@ -7,6 +8,7 @@ import { titleCase } from '../lib/format.js';
 
 export default function Users() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = user?.role === 'ADMIN';
   const [state, setState] = useState({ loading: true, rows: [], pagination: null });
   const [page, setPage] = useState(1);
@@ -46,7 +48,7 @@ export default function Users() {
               <tbody>
                 {state.rows.map((u) => (
                   <tr key={u.id}>
-                    <td><strong style={{ fontWeight: 600 }}>{u.name}</strong><div className="muted" style={{ fontSize: 12 }}>{u.mobile}</div></td>
+                    <td><span className="link" onClick={() => navigate(`/users/${u.id}`)}>{u.name}</span><div className="muted" style={{ fontSize: 12 }}>{u.mobile}</div></td>
                     <td>{u.email}</td>
                     <td>{titleCase(u.role)}</td>
                     <td>{u.team?.name || '—'}</td>

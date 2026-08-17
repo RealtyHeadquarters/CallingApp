@@ -18,6 +18,7 @@ function leadScope(user) {
 export const exportCalls = asyncHandler(async (req, res) => {
   const q = req.query;
   const where = { ...callScope(req.user) };
+  if (q.userId) where.userId = q.userId;
   if (q.callStatus) where.callStatus = q.callStatus;
   if (q.disposition) where.disposition = q.disposition;
   const range = dateRangeFromPreset(q.datePreset, q.startDate, q.endDate);
