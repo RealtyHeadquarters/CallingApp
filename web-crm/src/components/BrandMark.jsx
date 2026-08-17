@@ -1,5 +1,5 @@
-// ProCallAi logo mark — gradient rounded square with a voice waveform + AI dot.
-// Matches the app launcher icon so branding is consistent everywhere.
+// ProCallAi logo mark — gradient rounded square with a bold "P" monogram,
+// a teal AI spark, and a small voice waveform. Matches the app launcher icon.
 export default function BrandMark({ size = 36, radius = 11 }) {
   const id = 'pcaGrad';
   return (
@@ -12,14 +12,14 @@ export default function BrandMark({ size = 36, radius = 11 }) {
         </linearGradient>
       </defs>
       <rect width="48" height="48" rx={radius} fill={`url(#${id})`} />
-      <g fill="#fff">
-        <rect x="9.5" y="20.5" width="3.4" height="7" rx="1.7" />
-        <rect x="16" y="16" width="3.4" height="16" rx="1.7" />
-        <rect x="22.3" y="11" width="3.4" height="26" rx="1.7" />
-        <rect x="28.6" y="16" width="3.4" height="16" rx="1.7" />
-        <rect x="35.1" y="20.5" width="3.4" height="7" rx="1.7" />
+      <text x="21.5" y="35" textAnchor="middle" fill="#fff"
+        style={{ font: '800 30px "Sora", system-ui, sans-serif', letterSpacing: '-1px' }}>P</text>
+      <circle cx="33" cy="15" r="3.1" fill="#54FFEE" />
+      <g fill="#fff" opacity="0.92">
+        <rect x="28.5" y="34" width="1.9" height="4.2" rx="0.95" />
+        <rect x="31.4" y="32.2" width="1.9" height="7.8" rx="0.95" />
+        <rect x="34.3" y="34.5" width="1.9" height="5.2" rx="0.95" />
       </g>
-      <circle cx="24" cy="7.4" r="2.2" fill="#54FFEE" />
     </svg>
   );
 }
