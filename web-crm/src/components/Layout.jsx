@@ -23,14 +23,14 @@ const TITLES = {
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const loc = useLocation();
-  const title = TITLES[loc.pathname] || (loc.pathname.startsWith('/leads/') ? 'Lead Profile' : 'ProCallAi');
+  const title = TITLES[loc.pathname] || (loc.pathname.startsWith('/leads/') ? 'Lead Profile' : 'ProCallingApp');
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="logo">
           <BrandMark size={36} />
-          <span className="wordmark">ProCall<span className="ai">Ai</span></span>
+          <span className="wordmark">ProCalling<span className="ai">App</span></span>
         </div>
         {NAV.filter((n) => !n.roles || n.roles.includes(user?.role)).map((n) => (
           <NavLink

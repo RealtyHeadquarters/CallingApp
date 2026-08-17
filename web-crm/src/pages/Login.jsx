@@ -35,7 +35,7 @@ export default function Login() {
       <form className="login-card" onSubmit={submit}>
         <div className="brand">
           <BrandMark size={42} radius={13} />
-          <span className="wordmark brand">ProCall<span className="ai">Ai</span></span>
+          <span className="wordmark brand">ProCalling<span className="ai">App</span></span>
         </div>
         <p className="subtitle">Business Calling + CRM — sign in to your account</p>
 

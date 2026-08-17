@@ -65,7 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(width: 12),
                       ShaderMask(
                         shaderCallback: (r) => AppColors.brandGradient.createShader(r),
-                        child: const Text('ProCallAi',
+                        child: const Text('ProCallingApp',
                             style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
                       ),
                     ]),
