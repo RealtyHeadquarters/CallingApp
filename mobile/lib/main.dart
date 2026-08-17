@@ -9,18 +9,18 @@ void main() {
   runApp(
     ChangeNotifierProvider(
       create: (_) => AuthState()..bootstrap(),
-      child: const CallingApp(),
+      child: const ProCallAiApp(),
     ),
   );
 }
 
-class CallingApp extends StatelessWidget {
-  const CallingApp({super.key});
+class ProCallAiApp extends StatelessWidget {
+  const ProCallAiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'CallingApp',
+      title: 'ProCallAi',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
       home: Consumer<AuthState>(

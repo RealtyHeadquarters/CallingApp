@@ -3,6 +3,7 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import api, { apiError } from '../api/client.js';
 import { Modal } from '../components/ui.jsx';
+import BrandMark from '../components/BrandMark.jsx';
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -33,9 +34,10 @@ export default function Login() {
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <div className="brand">
-          <span className="dot">◈</span> CallingApp
+          <BrandMark size={42} radius={13} />
+          <span className="wordmark brand">ProCall<span className="ai">Ai</span></span>
         </div>
-        <p className="subtitle">Web CRM — sign in to your account</p>
+        <p className="subtitle">Business Calling + CRM — sign in to your account</p>
 
         {error && <div className="error-text">{error}</div>}
 

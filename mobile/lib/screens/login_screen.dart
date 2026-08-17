@@ -58,17 +58,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(children: [
-                      Container(
-                        width: 40, height: 40,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(11),
-                          gradient: const LinearGradient(colors: [AppColors.accent, AppColors.brand]),
-                        ),
-                        child: const Icon(Icons.diamond, color: Colors.white, size: 20),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.asset('assets/icon/procallai.png', width: 46, height: 46),
                       ),
-                      const SizedBox(width: 10),
-                      const Text('CallingApp',
-                          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                      const SizedBox(width: 12),
+                      ShaderMask(
+                        shaderCallback: (r) => AppColors.brandGradient.createShader(r),
+                        child: const Text('ProCallAi',
+                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: -0.5)),
+                      ),
                     ]),
                     const SizedBox(height: 6),
                     const Text('Sign in to start calling',

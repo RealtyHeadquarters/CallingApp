@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ClaudeCodeEditorTabs">
-    <option name="activeSessionId" value="bbafa03f-0357-4e66-a83e-49b282b18d23" />
+    <option name="activeSessionId" value="4be8f365-0999-4e79-8d10-ebf09f4127be" />
     <option name="openSessionIds">
       <list>
         <option value="fafbce21-55e2-4d73-a34c-c8ed967563ec" />
         <option value="f1e1c5d6-9832-461a-b16c-ecc26b97ea87" />
         <option value="bbafa03f-0357-4e66-a83e-49b282b18d23" />
+        <option value="4be8f365-0999-4e79-8d10-ebf09f4127be" />
       </list>
     </option>
     <option name="sessionPaths">
       <map>
+        <entry key="4be8f365-0999-4e79-8d10-ebf09f4127be" value="/sessions/02adaa09-35dd-4995-9e52-c0c5fedc834d" />
         <entry key="bbafa03f-0357-4e66-a83e-49b282b18d23" value="/sessions/new" />
         <entry key="f1e1c5d6-9832-461a-b16c-ecc26b97ea87" value="/sessions/new" />
         <entry key="fafbce21-55e2-4d73-a34c-c8ed967563ec" value="/sessions/02adaa09-35dd-4995-9e52-c0c5fedc834d" />
@@ -18,6 +20,7 @@
     </option>
     <option name="sessionTitles">
       <map>
+        <entry key="4be8f365-0999-4e79-8d10-ebf09f4127be" value="hey" />
         <entry key="bbafa03f-0357-4e66-a83e-49b282b18d23" value="Claude Code" />
         <entry key="f1e1c5d6-9832-461a-b16c-ecc26b97ea87" value="Claude Code" />
         <entry key="fafbce21-55e2-4d73-a34c-c8ed967563ec" value="hey" />

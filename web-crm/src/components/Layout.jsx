@@ -2,6 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { initials, titleCase } from '../lib/format.js';
 import NotificationBell from './NotificationBell.jsx';
+import BrandMark from './BrandMark.jsx';
 
 // Sidebar navigation (spec §43). Some items are admin/manager only.
 const NAV = [
@@ -22,13 +23,14 @@ const TITLES = {
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
   const loc = useLocation();
-  const title = TITLES[loc.pathname] || (loc.pathname.startsWith('/leads/') ? 'Lead Profile' : 'CallingApp');
+  const title = TITLES[loc.pathname] || (loc.pathname.startsWith('/leads/') ? 'Lead Profile' : 'ProCallAi');
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="logo">
-          <span className="dot">◈</span> CallingApp
+          <BrandMark size={36} />
+          <span className="wordmark">ProCall<span className="ai">Ai</span></span>
         </div>
         {NAV.filter((n) => !n.roles || n.roles.includes(user?.role)).map((n) => (
           <NavLink

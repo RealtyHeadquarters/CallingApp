@@ -41,6 +41,17 @@
   --font-display: "Sora", var(--font);
 }
 
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(100deg, #fff 30%, #b9f5f0 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.wordmark.brand { background: linear-gradient(100deg, #5b60f0 0%, #8b5cf6 55%, #10c5c0 110%); -webkit-background-clip: text; background-clip: text; }
+.wordmark .ai { -webkit-text-fill-color: #54ffee; background: none; }
+.wordmark.brand .ai { -webkit-text-fill-color: #10c5c0; }
+
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body {

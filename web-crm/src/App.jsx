@@ -14,7 +14,7 @@ import Teams from './pages/Teams.jsx';
 
 function Protected({ children }) {
   const { user, loading } = useAuth();
-  if (loading) return <Loading label="Starting CallingApp CRM…" />;
+  if (loading) return <Loading label="Starting ProCallAi…" />;
   if (!user) return <Navigate to="/login" replace />;
   return <Layout>{children}</Layout>;
 }
