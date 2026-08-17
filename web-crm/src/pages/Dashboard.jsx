@@ -3,10 +3,18 @@ import api, { apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Loading } from '../components/ui.jsx';
 
-function Kpi({ label, value, sub, accent }) {
+function Kpi({ label, value, sub, accent, icon }) {
   return (
     <div className="card kpi">
-      <div className="label">{label}</div>
+      <div className="row-gap" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div className="label">{label}</div>
+        {icon && (
+          <div style={{
+            width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center',
+            fontSize: 16, background: 'linear-gradient(135deg, rgba(91,96,240,0.14), rgba(16,197,192,0.14))',
+          }}>{icon}</div>
+        )}
+      </div>
       <div className={`value ${accent ? 'accent' : ''}`}>{value}</div>
       {sub != null && <div className="sub">{sub}</div>}
     </div>
@@ -34,15 +42,15 @@ export default function Dashboard() {
     return (
       <>
         <div className="kpi-grid">
-          <Kpi label="Total Leads" value={o.totalLeads} />
-          <Kpi label="Total Calls" value={o.totalCalls} />
-          <Kpi label="Answered" value={o.answeredCalls} />
-          <Kpi label="Unanswered" value={o.unansweredCalls} />
-          <Kpi label="Answer Rate" value={`${o.answerRate}%`} accent />
-          <Kpi label="Total Talk Time" value={o.totalTalkTime} />
-          <Kpi label="Avg Talk Time" value={o.avgTalkTime} />
-          <Kpi label="Converted Leads" value={o.convertedLeads} accent />
-          <Kpi label="Active Users" value={`${o.activeUsers} / ${o.totalUsers}`} />
+          <Kpi label="Total Leads" value={o.totalLeads} icon="🎯" />
+          <Kpi label="Total Calls" value={o.totalCalls} icon="📞" />
+          <Kpi label="Answered" value={o.answeredCalls} icon="✅" />
+          <Kpi label="Unanswered" value={o.unansweredCalls} icon="📵" />
+          <Kpi label="Answer Rate" value={`${o.answerRate}%`} accent icon="📈" />
+          <Kpi label="Total Talk Time" value={o.totalTalkTime} icon="⏱️" />
+          <Kpi label="Avg Talk Time" value={o.avgTalkTime} icon="🕐" />
+          <Kpi label="Converted Leads" value={o.convertedLeads} accent icon="🏆" />
+          <Kpi label="Active Users" value={`${o.activeUsers} / ${o.totalUsers}`} icon="👥" />
         </div>
         <div className="section-head"><h2>Follow-ups</h2></div>
         <div className="kpi-grid">
@@ -59,14 +67,14 @@ export default function Dashboard() {
   return (
     <>
       <div className="kpi-grid">
-        <Kpi label="Total Calls" value={k.totalCalls} sub="today" />
-        <Kpi label="Answered" value={k.answeredCalls} />
-        <Kpi label="Unanswered" value={k.unansweredCalls} />
-        <Kpi label="Answer Rate" value={`${k.answerRate}%`} accent />
-        <Kpi label="Talk Time" value={k.totalTalkTime} />
-        <Kpi label="Avg Talk Time" value={k.avgTalkTime} />
-        <Kpi label="Today's Follow-ups" value={data.followUps.today} />
-        <Kpi label="Pending Follow-ups" value={data.followUps.pending} />
+        <Kpi label="Total Calls" value={k.totalCalls} sub="today" icon="📞" />
+        <Kpi label="Answered" value={k.answeredCalls} icon="✅" />
+        <Kpi label="Unanswered" value={k.unansweredCalls} icon="📵" />
+        <Kpi label="Answer Rate" value={`${k.answerRate}%`} accent icon="📈" />
+        <Kpi label="Talk Time" value={k.totalTalkTime} icon="⏱️" />
+        <Kpi label="Avg Talk Time" value={k.avgTalkTime} icon="🕐" />
+        <Kpi label="Today's Follow-ups" value={data.followUps.today} icon="🔔" />
+        <Kpi label="Pending Follow-ups" value={data.followUps.pending} icon="⏳" />
       </div>
       {data.targets && (
         <>

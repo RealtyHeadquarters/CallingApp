@@ -5,24 +5,75 @@ class KpiCard extends StatelessWidget {
   final String label;
   final String value;
   final bool accent;
-  const KpiCard({super.key, required this.label, required this.value, this.accent = false});
+  final IconData? icon;
+  const KpiCard({super.key, required this.label, required this.value, this.accent = false, this.icon});
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(offset: Offset(0, (1 - t) * 14), child: child),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(color: AppColors.brand.withValues(alpha: 0.06), blurRadius: 16, offset: const Offset(0, 6)),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label.toUpperCase(),
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text3, letterSpacing: 0.4)),
-            const SizedBox(height: 8),
-            Text(value,
-                style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w700,
-                    color: accent ? AppColors.accent : AppColors.text)),
+            Container(
+              height: 4,
+              decoration: const BoxDecoration(
+                gradient: AppColors.brandGradient,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(label.toUpperCase(),
+                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.text3, letterSpacing: 0.6)),
+                      ),
+                      if (icon != null)
+                        Container(
+                          width: 30, height: 30,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(9),
+                            gradient: LinearGradient(colors: [
+                              AppColors.brand.withValues(alpha: 0.14),
+                              AppColors.accent.withValues(alpha: 0.14),
+                            ]),
+                          ),
+                          child: Icon(icon, size: 16, color: AppColors.brand600),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ShaderMask(
+                    shaderCallback: (r) => accent
+                        ? AppColors.brandGradient.createShader(r)
+                        : const LinearGradient(colors: [AppColors.text, AppColors.text]).createShader(r),
+                    child: Text(value,
+                        style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white, letterSpacing: -0.5)),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
