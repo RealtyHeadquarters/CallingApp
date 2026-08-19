@@ -114,6 +114,7 @@ class CallRecord {
   final String phoneNumber;
   final String? clientName;
   final String? customerName;
+  final String direction;
   final String? callStatus;
   final String? disposition;
   final String? remark;
@@ -127,6 +128,7 @@ class CallRecord {
         phoneNumber = j['phoneNumber'] ?? '',
         clientName = j['client']?['name'],
         customerName = j['customerName'],
+        direction = j['direction'] ?? 'OUTGOING',
         callStatus = j['callStatus'],
         disposition = j['disposition'],
         remark = j['remark'],

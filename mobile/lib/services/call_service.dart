@@ -1,5 +1,6 @@
 import 'package:call_log/call_log.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api_client.dart';
 
@@ -97,8 +98,8 @@ class CallService {
     await _api.dio.patch('/calls/$callDbId/complete', data: {
       'callStatus': outcome.callStatus,
       'durationSeconds': outcome.durationSeconds,
-      if (outcome.answerTime != null) 'callAnswerTime': outcome.answerTime!.toIso8601String(),
-      if (outcome.endTime != null) 'callEndTime': outcome.endTime!.toIso8601String(),
+      if (outcome.answerTime != null) 'callAnswerTime': outcome.answerTime!.toUtc().toIso8601String(),
+      if (outcome.endTime != null) 'callEndTime': outcome.endTime!.toUtc().toIso8601String(),
     });
   }
 
@@ -113,7 +114,7 @@ class CallService {
     await _api.dio.patch('/calls/$callDbId/complete', data: {
       'callStatus': callStatus,
       'durationSeconds': answered ? durationSeconds : 0,
-      'callEndTime': DateTime.now().toIso8601String(),
+      'callEndTime': DateTime.now().toUtc().toIso8601String(),
     });
   }
 
@@ -134,4 +135,89 @@ class CallService {
   }
 
   String _digits(String s) => s.replaceAll(RegExp(r'\D'), '');
+
+  static const _lastSyncKey = 'call_log_last_sync';
+  // Prevents overlapping syncs (resume + phone-state CALL_ENDED can both fire),
+  // which would otherwise race the backend dedup and create duplicate rows.
+  static bool _syncing = false;
+
+  /// Read the device call log since the last sync and push new INCOMING calls to
+  /// the backend — that is how incoming calls become CRM activities in the SIM
+  /// model (they have no app-initiated step). OUTGOING calls are already recorded
+  /// by the dial → complete flow, so we skip them here to avoid double-logging.
+  /// Idempotent: the backend dedupes and we advance a watermark.
+  Future<int> syncCallLog() async {
+    if (_syncing) return 0;
+    _syncing = true;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lastSync = prefs.getInt(_lastSyncKey);
+      // First run: look back 24h. Otherwise since last sync (minus a small overlap).
+      final from = lastSync != null
+          ? lastSync - 5 * 60 * 1000
+          : DateTime.now().subtract(const Duration(hours: 24)).millisecondsSinceEpoch;
+
+      final Iterable<CallLogEntry> entries = await CallLog.query(dateFrom: from);
+      final list = entries
+          .where((e) => (e.number ?? '').isNotEmpty)
+          .map(_mapEntry)
+          .where((m) => m['direction'] == 'INCOMING')
+          .toList();
+      if (list.isEmpty) {
+        await prefs.setInt(_lastSyncKey, DateTime.now().millisecondsSinceEpoch);
+        return 0;
+      }
+      final res = await _api.dio.post('/calls/sync', data: {'entries': list});
+      await prefs.setInt(_lastSyncKey, DateTime.now().millisecondsSinceEpoch);
+      return (res.data['created'] as int?) ?? 0;
+    } catch (_) {
+      return 0; // best-effort; never blocks the UI
+    } finally {
+      _syncing = false;
+    }
+  }
+
+  Map<String, dynamic> _mapEntry(CallLogEntry e) {
+    final duration = e.duration ?? 0;
+    String direction;
+    String status;
+    switch (e.callType) {
+      case CallType.incoming:
+      case CallType.wifiIncoming:
+        direction = 'INCOMING';
+        status = duration > 0 ? 'ANSWERED' : 'NO_ANSWER';
+        break;
+      case CallType.missed:
+        direction = 'INCOMING';
+        status = 'NO_ANSWER';
+        break;
+      case CallType.rejected:
+      case CallType.blocked:
+        direction = 'INCOMING';
+        status = 'REJECTED';
+        break;
+      default: // outgoing / wifiOutgoing / unknown
+        direction = 'OUTGOING';
+        status = duration > 0 ? 'ANSWERED' : 'NO_ANSWER';
+    }
+    return {
+      'phoneNumber': e.number,
+      'direction': direction,
+      'callStatus': status,
+      // Absolute UTC instant — epoch ms is timezone-independent; .toUtc() ensures
+      // the ISO string carries 'Z' so the server stores the correct time.
+      'callStartTime': DateTime.fromMillisecondsSinceEpoch(e.timestamp ?? 0).toUtc().toIso8601String(),
+      'durationSeconds': status == 'ANSWERED' ? duration : 0,
+    };
+  }
+
+  /// Look up a client by phone number (used for the incoming caller screen).
+  Future<Map<String, dynamic>?> lookup(String phoneNumber) async {
+    try {
+      final res = await _api.dio.get('/leads/lookup', queryParameters: {'number': phoneNumber});
+      return res.data['found'] == true ? res.data['client'] as Map<String, dynamic> : null;
+    } catch (_) {
+      return null;
+    }
+  }
 }

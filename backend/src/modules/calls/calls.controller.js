@@ -6,10 +6,11 @@ import { recordAudit } from '../../utils/audit.js';
 import { parsePagination, paginated } from '../../utils/pagination.js';
 import { generateCallId, generateLeadId } from '../../utils/ids.js';
 import { formatDuration, dateRangeFromPreset } from '../../utils/stats.js';
-import { CALL_STATUSES, DISPOSITIONS, LEAD_STATUSES } from '../../utils/enums.js';
+import { CALL_STATUSES, DISPOSITIONS, LEAD_STATUSES, CALL_DIRECTIONS } from '../../utils/enums.js';
 
 const callSelect = {
-  id: true, callId: true, phoneNumber: true, customerName: true, callStatus: true, disposition: true,
+  id: true, callId: true, phoneNumber: true, customerName: true, direction: true,
+  callStatus: true, disposition: true,
   remark: true, recordingUrl: true, durationSeconds: true,
   callStartTime: true, callAnswerTime: true, callEndTime: true,
   createdAt: true, updatedAt: true,
@@ -102,6 +103,7 @@ export const logCallSchema = z.object({
   phoneNumber: z.string().min(3),
   clientId: z.string().optional().nullable(),
   callStatus: z.enum(CALL_STATUSES),
+  direction: z.enum(CALL_DIRECTIONS).default('OUTGOING'),
   callStartTime: z.coerce.date().optional(),
   callAnswerTime: z.coerce.date().optional().nullable(),
   callEndTime: z.coerce.date().optional().nullable(),
@@ -120,6 +122,7 @@ export const logCall = asyncHandler(async (req, res) => {
       userId: req.user.id,
       clientId,
       phoneNumber: b.phoneNumber,
+      direction: b.direction,
       callStatus: b.callStatus,
       callStartTime: b.callStartTime || new Date(),
       callAnswerTime: answered ? b.callAnswerTime ?? null : null,
@@ -128,8 +131,74 @@ export const logCall = asyncHandler(async (req, res) => {
     },
     select: callSelect,
   });
-  recordAudit(req, { action: 'CALL_LOGGED', entityType: 'Call', entityId: call.id, description: `Logged ${callId} (${b.callStatus})` });
+  recordAudit(req, { action: 'CALL_LOGGED', entityType: 'Call', entityId: call.id, description: `Logged ${callId} (${b.direction} ${b.callStatus})` });
   res.status(201).json({ call });
+});
+
+// ── Batch sync of device call-log entries (incoming + outgoing). Dedupes against
+//    already-logged calls so re-syncing is safe. Newly captured calls have no
+//    disposition yet — the agent fills them from the app (spec §8/§12). ──
+export const syncCallsSchema = z.object({
+  entries: z
+    .array(
+      z.object({
+        phoneNumber: z.string().min(3),
+        direction: z.enum(CALL_DIRECTIONS),
+        callStatus: z.enum(CALL_STATUSES),
+        callStartTime: z.coerce.date(),
+        durationSeconds: z.number().int().min(0).optional(),
+      })
+    )
+    .max(500),
+});
+
+export const syncCalls = asyncHandler(async (req, res) => {
+  const { entries } = req.body;
+  if (entries.length === 0) return res.json({ created: 0, skipped: 0, calls: [] });
+
+  // Preload this user's recent calls to dedupe. Device call-log timestamps are a
+  // stable per-call identifier, so we match on number + direction + a tight ±10s
+  // window — wide enough for clock rounding, narrow enough to keep legitimate
+  // redials/callbacks to the same number as distinct calls.
+  const earliest = entries.reduce((min, e) => (e.callStartTime < min ? e.callStartTime : min), entries[0].callStartTime);
+  const existing = await prisma.call.findMany({
+    where: { userId: req.user.id, callStartTime: { gte: new Date(new Date(earliest).getTime() - 15000) } },
+    select: { phoneNumber: true, direction: true, callStartTime: true },
+  });
+  const seen = (phone, dir, start) =>
+    existing.some(
+      (c) => c.phoneNumber === phone && c.direction === dir && c.callStartTime &&
+        Math.abs(c.callStartTime.getTime() - start.getTime()) < 10000
+    );
+
+  const created = [];
+  let skipped = 0;
+  for (const e of entries) {
+    if (seen(e.phoneNumber, e.direction, e.callStartTime)) { skipped++; continue; }
+    const answered = e.callStatus === 'ANSWERED';
+    const clientId = await resolveClientId(req.user, e.phoneNumber, null);
+    const callId = await generateCallId(e.callStartTime);
+    const call = await prisma.call.create({
+      data: {
+        callId,
+        userId: req.user.id,
+        clientId,
+        phoneNumber: e.phoneNumber,
+        direction: e.direction,
+        callStatus: e.callStatus,
+        callStartTime: e.callStartTime,
+        callEndTime: new Date(e.callStartTime.getTime() + (answered ? (e.durationSeconds ?? 0) * 1000 : 0)),
+        durationSeconds: answered ? e.durationSeconds ?? 0 : 0,
+      },
+      select: callSelect,
+    });
+    // Keep local dedupe list current within the same batch.
+    existing.push({ phoneNumber: e.phoneNumber, direction: e.direction, callStartTime: e.callStartTime });
+    created.push(call);
+  }
+
+  recordAudit(req, { action: 'CALL_SYNC', entityType: 'Call', description: `Synced ${created.length} calls (${skipped} dup)` });
+  res.json({ created: created.length, skipped, calls: created });
 });
 
 // ── Disposition + mandatory remark, optional follow-up lead-status change (spec §14/§15) ──
@@ -204,6 +273,7 @@ export const listCallsQuery = z.object({
   clientId: z.string().optional(),
   callStatus: z.enum(CALL_STATUSES).optional(),
   disposition: z.enum(DISPOSITIONS).optional(),
+  direction: z.enum(CALL_DIRECTIONS).optional(),
   datePreset: z.enum(['today', 'yesterday', 'last7', 'last30', 'thisMonth', 'custom']).optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
@@ -219,6 +289,7 @@ export const listCalls = asyncHandler(async (req, res) => {
   if (q.clientId) where.clientId = q.clientId;
   if (q.callStatus) where.callStatus = q.callStatus;
   if (q.disposition) where.disposition = q.disposition;
+  if (q.direction) where.direction = q.direction;
   const range = dateRangeFromPreset(q.datePreset, q.startDate, q.endDate);
   if (range) where.createdAt = range;
   if (q.search) {

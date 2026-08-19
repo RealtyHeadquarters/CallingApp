@@ -47,17 +47,25 @@ class _CallHistoryScreenState extends State<CallHistoryScreen> {
         separatorBuilder: (_, __) => const Divider(height: 1),
         itemBuilder: (_, i) {
           final c = _calls[i];
+          final incoming = c.direction == 'INCOMING';
           final answered = c.callStatus == 'ANSWERED';
+          // Icon reflects direction; color reflects answered/missed.
+          final color = answered ? AppColors.green : (incoming ? AppColors.red : AppColors.text3);
+          final icon = !answered && incoming
+              ? Icons.call_missed
+              : incoming
+                  ? Icons.call_received
+                  : Icons.call_made;
           return ListTile(
             leading: CircleAvatar(
-              backgroundColor: (answered ? AppColors.green : AppColors.red).withValues(alpha: 0.12),
-              child: Icon(
-                answered ? Icons.call_received : Icons.call_missed,
-                color: answered ? AppColors.green : AppColors.red,
-                size: 20,
-              ),
+              backgroundColor: color.withValues(alpha: 0.12),
+              child: Icon(icon, color: color, size: 20),
             ),
-            title: Text(c.clientName ?? c.customerName ?? c.phoneNumber, style: const TextStyle(fontWeight: FontWeight.w600)),
+            title: Row(children: [
+              Flexible(child: Text(c.clientName ?? c.customerName ?? c.phoneNumber, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+              const SizedBox(width: 6),
+              Text(incoming ? '↙ In' : '↗ Out', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: incoming ? AppColors.accent : AppColors.brand)),
+            ]),
             subtitle: Text(
               '${DateFormat('dd MMM, hh:mm a').format(c.createdAt)} · ${c.durationFormatted}'
               '${c.remark != null ? '\n${c.remark}' : ''}',

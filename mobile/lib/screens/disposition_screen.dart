@@ -95,7 +95,7 @@ class _DispositionScreenState extends State<DispositionScreen> {
           'clientId': widget.clientId,
           'callId': widget.callDbId,
           'followupType': 'CALL',
-          if (_customTime != null) 'followupAt': _customTime!.toIso8601String(),
+          if (_customTime != null) 'followupAt': _customTime!.toUtc().toIso8601String(),
           if (_customTime == null && _quick != null) 'quick': _quick,
           'note': _remark.text.trim(),
         });

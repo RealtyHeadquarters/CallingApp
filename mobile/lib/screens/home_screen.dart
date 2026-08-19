@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:phone_state/phone_state.dart';
 import 'package:provider/provider.dart';
 import '../services/api_client.dart';
+import '../services/call_service.dart';
 import '../state/auth_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
@@ -20,17 +22,93 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _index = 0;
+  final _call = CallService();
+  StreamSubscription<PhoneState>? _phoneSub;
 
   @override
   void initState() {
     super.initState();
-    // If a call was in progress when the app was last killed (common on MIUI),
-    // finish its disposition/remark now that we're back.
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) completePendingCall(context);
+      if (!mounted) return;
+      // Finish a call interrupted by an app kill (MIUI), then pull any calls
+      // (incoming + outgoing) that happened while away into the CRM.
+      completePendingCall(context);
+      _syncCalls();
     });
+    _listenPhoneState();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _phoneSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _syncCalls();
+  }
+
+  Future<void> _syncCalls() async {
+    final n = await _call.syncCallLog();
+    if (n > 0 && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$n call(s) synced from your phone')),
+      );
+      setState(() {}); // refresh visible lists
+    }
+  }
+
+  // Real-time caller ID: when a call comes in (app active), show who's calling;
+  // when a call ends, sync it into the CRM immediately.
+  void _listenPhoneState() {
+    try {
+      _phoneSub = PhoneState.stream.listen((event) async {
+        final number = event.number;
+        if (event.status == PhoneStateStatus.CALL_INCOMING && number != null && number.isNotEmpty) {
+          final client = await _call.lookup(number);
+          if (mounted) _showIncomingBanner(number, client);
+        } else if (event.status == PhoneStateStatus.CALL_ENDED) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).clearMaterialBanners();
+          await _syncCalls();
+        }
+      });
+    } catch (_) {/* phone state unavailable — sync still covers logging */}
+  }
+
+  void _showIncomingBanner(String number, Map<String, dynamic>? client) {
+    final name = client?['name'] as String?;
+    final company = client?['company'] as String?;
+    final status = client?['leadStatus'] as String?;
+    ScaffoldMessenger.of(context)
+      ..clearMaterialBanners()
+      ..showMaterialBanner(MaterialBanner(
+        backgroundColor: AppColors.brandDark,
+        leading: const Icon(Icons.phone_callback, color: AppColors.accent),
+        content: DefaultTextStyle(
+          style: const TextStyle(color: Colors.white),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(name ?? 'Incoming call', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+              Text('$number${company != null ? ' · $company' : ''}${status != null ? ' · ${titleCase(status)}' : ''}',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12.5)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => ScaffoldMessenger.of(context).clearMaterialBanners(),
+            child: const Text('Dismiss', style: TextStyle(color: AppColors.accent)),
+          ),
+        ],
+      ));
   }
 
   final _pages = const [

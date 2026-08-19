@@ -43,6 +43,12 @@ enum LeadStatus {
   LOST
 }
 
+// Whether the agent placed the call or received it.
+enum CallDirection {
+  OUTGOING
+  INCOMING
+}
+
 // Detailed call status (spec §9). Answered vs Unanswered is derived:
 // ANSWERED => answered; everything else => unanswered.
 enum CallStatus {
@@ -184,6 +190,7 @@ model Call {
 
   phoneNumber     String       @map("phone_number")
   customerName    String?      @map("customer_name")
+  direction       CallDirection @default(OUTGOING)
 
   callStartTime   DateTime?    @map("call_start_time")
   callAnswerTime  DateTime?    @map("call_answer_time")

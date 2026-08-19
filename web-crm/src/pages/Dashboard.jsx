@@ -44,6 +44,8 @@ export default function Dashboard() {
         <div className="kpi-grid">
           <Kpi label="Total Leads" value={o.totalLeads} icon="🎯" />
           <Kpi label="Total Calls" value={o.totalCalls} icon="📞" />
+          <Kpi label="Incoming" value={o.incomingCalls ?? 0} icon="↙️" />
+          <Kpi label="Outgoing" value={o.outgoingCalls ?? 0} icon="↗️" />
           <Kpi label="Answered" value={o.answeredCalls} icon="✅" />
           <Kpi label="Unanswered" value={o.unansweredCalls} icon="📵" />
           <Kpi label="Answer Rate" value={`${o.answerRate}%`} accent icon="📈" />

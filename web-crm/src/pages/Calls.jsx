@@ -5,7 +5,7 @@ import { Badge, Loading, Empty, Pagination } from '../components/ui.jsx';
 import ExportMenu from '../components/ExportMenu.jsx';
 import AgentFilter from '../components/AgentFilter.jsx';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { CALL_STATUSES, DISPOSITIONS, DATE_PRESETS } from '../lib/constants.js';
+import { CALL_STATUSES, DISPOSITIONS, DATE_PRESETS, CALL_DIRECTIONS } from '../lib/constants.js';
 import { fmtDateTime, titleCase } from '../lib/format.js';
 
 export default function Calls() {
@@ -13,7 +13,7 @@ export default function Calls() {
   const { user } = useAuth();
   const canExport = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const [state, setState] = useState({ loading: true, rows: [], pagination: null });
-  const [filters, setFilters] = useState({ callStatus: '', disposition: '', datePreset: '', search: '', userId: '' });
+  const [filters, setFilters] = useState({ callStatus: '', disposition: '', datePreset: '', search: '', userId: '', direction: '' });
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
 
@@ -36,6 +36,10 @@ export default function Calls() {
       <div className="toolbar">
         <input className="input grow" placeholder="Search phone, Call ID, client…" value={filters.search} onChange={setF('search')} />
         {canExport && <AgentFilter value={filters.userId} onChange={(v) => { setPage(1); setFilters((f) => ({ ...f, userId: v })); }} />}
+        <select className="select" value={filters.direction} onChange={setF('direction')}>
+          <option value="">All calls</option>
+          {CALL_DIRECTIONS.map((d) => <option key={d} value={d}>{d === 'INCOMING' ? '↙ Incoming' : '↗ Outgoing'}</option>)}
+        </select>
         <select className="select" value={filters.callStatus} onChange={setF('callStatus')}>
           <option value="">All statuses</option>
           {CALL_STATUSES.map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
@@ -66,7 +70,7 @@ export default function Calls() {
             <table className="data">
               <thead>
                 <tr>
-                  <th>Call ID</th><th>Date / Time</th><th>Agent</th><th>Client</th>
+                  <th>Call ID</th><th>Date / Time</th><th></th><th>Agent</th><th>Client</th>
                   <th>Phone</th><th>Status</th><th>Duration</th><th>Disposition</th>
                 </tr>
               </thead>
@@ -75,6 +79,9 @@ export default function Calls() {
                   <tr key={c.id}>
                     <td className="muted">{c.callId}</td>
                     <td>{fmtDateTime(c.createdAt)}</td>
+                    <td title={c.direction === 'INCOMING' ? 'Incoming' : 'Outgoing'} style={{ color: c.direction === 'INCOMING' ? 'var(--accent-500)' : 'var(--brand-500)', fontWeight: 700 }}>
+                      {c.direction === 'INCOMING' ? '↙' : '↗'}
+                    </td>
                     <td>{c.user?.name}</td>
                     <td>
                       {c.client

@@ -55,6 +55,7 @@ export const adminDashboard = asyncHandler(async (_req, res) => {
   const [
     totalLeads, totalUsers, activeUsers, convertedLeads,
     allTimeStats, todaysFollowups, pendingFollowups, overdueFollowups,
+    incomingCalls, outgoingCalls,
   ] = await Promise.all([
     prisma.client.count(),
     prisma.user.count(),
@@ -64,6 +65,8 @@ export const adminDashboard = asyncHandler(async (_req, res) => {
     prisma.followUp.count({ where: { status: 'PENDING', followupAt: today } }),
     prisma.followUp.count({ where: { status: 'PENDING' } }),
     prisma.followUp.count({ where: { status: 'PENDING', followupAt: { lt: new Date() } } }),
+    prisma.call.count({ where: { direction: 'INCOMING' } }),
+    prisma.call.count({ where: { direction: 'OUTGOING' } }),
   ]);
 
   res.json({
@@ -72,6 +75,8 @@ export const adminDashboard = asyncHandler(async (_req, res) => {
       totalUsers,
       activeUsers,
       convertedLeads,
+      incomingCalls,
+      outgoingCalls,
       ...allTimeStats,
     },
     followUps: {
