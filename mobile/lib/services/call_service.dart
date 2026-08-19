@@ -211,6 +211,28 @@ class CallService {
     };
   }
 
+  /// Record an INCOMING call (after the agent classifies it as "Office").
+  /// Returns the created call { id, callId, ... } so the disposition/remark
+  /// screen can open for it.
+  Future<Map<String, dynamic>> logIncoming({
+    required String phoneNumber,
+    required String callStatus,
+    required int durationSeconds,
+    DateTime? startTime,
+    String? clientId,
+  }) async {
+    final answered = callStatus == 'ANSWERED';
+    final res = await _api.dio.post('/calls/log', data: {
+      'phoneNumber': phoneNumber,
+      'direction': 'INCOMING',
+      'callStatus': callStatus,
+      'durationSeconds': answered ? durationSeconds : 0,
+      if (startTime != null) 'callStartTime': startTime.toUtc().toIso8601String(),
+      if (clientId != null) 'clientId': clientId,
+    });
+    return res.data['call'] as Map<String, dynamic>;
+  }
+
   /// Look up a client by phone number (used for the incoming caller screen).
   Future<Map<String, dynamic>?> lookup(String phoneNumber) async {
     try {

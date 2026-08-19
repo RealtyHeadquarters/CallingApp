@@ -4,6 +4,7 @@ import 'package:phone_state/phone_state.dart';
 import 'package:provider/provider.dart';
 import '../services/api_client.dart';
 import '../services/call_service.dart';
+import '../services/pending_incoming.dart';
 import '../state/auth_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
@@ -13,6 +14,7 @@ import 'leads_screen.dart';
 import 'call_history_screen.dart';
 import 'followups_screen.dart';
 import 'notifications_screen.dart';
+import 'disposition_screen.dart';
 import 'call_flow.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _index = 0;
   final _call = CallService();
   StreamSubscription<PhoneState>? _phoneSub;
+  bool _handlingIncoming = false;
 
   @override
   void initState() {
@@ -33,10 +36,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      // Finish a call interrupted by an app kill (MIUI), then pull any calls
-      // (incoming + outgoing) that happened while away into the CRM.
-      completePendingCall(context);
-      _syncCalls();
+      completePendingCall(context);   // finish an outgoing call interrupted by an app kill
+      _handleIncoming();              // classify an incoming call that just ended
     });
     _listenPhoneState();
   }
@@ -50,35 +51,111 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _syncCalls();
+    if (state == AppLifecycleState.resumed) _handleIncoming();
   }
 
-  Future<void> _syncCalls() async {
-    final n = await _call.syncCallLog();
-    if (n > 0 && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$n call(s) synced from your phone')),
-      );
-      setState(() {}); // refresh visible lists
-    }
-  }
-
-  // Real-time caller ID: when a call comes in (app active), show who's calling;
-  // when a call ends, sync it into the CRM immediately.
   void _listenPhoneState() {
     try {
       _phoneSub = PhoneState.stream.listen((event) async {
         final number = event.number;
         if (event.status == PhoneStateStatus.CALL_INCOMING && number != null && number.isNotEmpty) {
+          // Remember the incoming call so we can classify it once it ends
+          // (persisted so it survives an app kill during the call).
+          await PendingIncomingStore.save(PendingIncoming(number: number, start: DateTime.now()));
           final client = await _call.lookup(number);
           if (mounted) _showIncomingBanner(number, client);
         } else if (event.status == PhoneStateStatus.CALL_ENDED) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).clearMaterialBanners();
-          await _syncCalls();
+          await _handleIncoming();
         }
       });
-    } catch (_) {/* phone state unavailable — sync still covers logging */}
+    } catch (_) {/* phone state unavailable */}
+  }
+
+  // After an incoming call ends: ask the agent if it was Personal or Office.
+  // Only "Office" calls are recorded in the CRM (then the remark flow opens).
+  Future<void> _handleIncoming() async {
+    if (_handlingIncoming) return;
+    final pending = await PendingIncomingStore.get();
+    if (pending == null) return;
+    _handlingIncoming = true;
+    try {
+      // Give the OS a moment to write the call log, then read the outcome.
+      CallOutcome? outcome;
+      for (var i = 0; i < 3 && outcome == null; i++) {
+        outcome = await _call.captureFromCallLog(pending.number, pending.start);
+        if (outcome == null) await Future.delayed(const Duration(seconds: 1));
+      }
+      final client = await _call.lookup(pending.number);
+      if (!mounted) { return; }
+
+      final office = await _askPersonalOrOffice(pending.number, client, outcome);
+      await PendingIncomingStore.clear();
+      if (office != true || !mounted) return;
+
+      final created = await _call.logIncoming(
+        phoneNumber: pending.number,
+        callStatus: outcome?.callStatus ?? 'NO_ANSWER',
+        durationSeconds: outcome?.durationSeconds ?? 0,
+        startTime: pending.start,
+        clientId: client?['id'] as String?,
+      );
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => DispositionScreen(
+          callDbId: created['id'],
+          clientId: client?['id'] as String?,
+          phoneNumber: pending.number,
+          outcome: outcome,
+        ),
+      ));
+      if (mounted) setState(() {});
+    } catch (_) {
+      await PendingIncomingStore.clear();
+    } finally {
+      _handlingIncoming = false;
+    }
+  }
+
+  Future<bool?> _askPersonalOrOffice(String number, Map<String, dynamic>? client, CallOutcome? outcome) {
+    final name = client?['name'] as String?;
+    final company = client?['company'] as String?;
+    final dur = outcome?.durationSeconds ?? 0;
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.phone_callback, color: AppColors.accent, size: 34),
+        title: const Text('Incoming call ended'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(name ?? number, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            if (name != null) Text(number, style: const TextStyle(color: AppColors.text3, fontSize: 13)),
+            if (company != null) Text(company, style: const TextStyle(color: AppColors.text2, fontSize: 13)),
+            const SizedBox(height: 6),
+            Text('Duration ${(dur ~/ 60).toString().padLeft(2, '0')}:${(dur % 60).toString().padLeft(2, '0')}',
+                style: const TextStyle(color: AppColors.text3, fontSize: 12.5)),
+            const SizedBox(height: 14),
+            const Text('Was this a personal or office call?', textAlign: TextAlign.center),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Personal', style: TextStyle(color: AppColors.text2)),
+          ),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+            icon: const Icon(Icons.business_center, size: 18),
+            label: const Text('Office — record'),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showIncomingBanner(String number, Map<String, dynamic>? client) {
