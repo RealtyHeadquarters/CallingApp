@@ -134,7 +134,8 @@ class CallRecord {
         remark = j['remark'],
         durationSeconds = j['durationSeconds'] ?? 0,
         durationFormatted = j['durationFormatted'] ?? '00:00:00',
-        createdAt = DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now();
+        // Backend times are UTC — show them in the device's local timezone.
+        createdAt = (DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now()).toLocal();
 }
 
 class NotificationItem {
@@ -151,7 +152,7 @@ class NotificationItem {
         title = j['title'] ?? '',
         body = j['body'],
         read = j['read'] ?? false,
-        createdAt = DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now();
+        createdAt = (DateTime.tryParse(j['createdAt'] ?? '') ?? DateTime.now()).toLocal();
 }
 
 class FollowUp {
@@ -168,5 +169,5 @@ class FollowUp {
         note = j['note'],
         followupType = j['followupType'] ?? 'CALL',
         status = j['status'] ?? 'PENDING',
-        followupAt = DateTime.tryParse(j['followupAt'] ?? '') ?? DateTime.now();
+        followupAt = (DateTime.tryParse(j['followupAt'] ?? '') ?? DateTime.now()).toLocal();
 }
