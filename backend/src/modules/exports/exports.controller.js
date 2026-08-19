@@ -126,22 +126,32 @@ export const exportUserPerformance = asyncHandler(async (req, res) => {
   if (range) where.createdAt = range;
   if (req.user.role === 'MANAGER') where.user = { teamId: req.user.teamId ?? '__none__' };
 
-  const [totals, answered, users] = await Promise.all([
+  const [totals, answered, byDirection, users] = await Promise.all([
     prisma.call.groupBy({ by: ['userId'], where, _count: { _all: true } }),
     prisma.call.groupBy({ by: ['userId'], where: { ...where, callStatus: 'ANSWERED' }, _count: { _all: true }, _sum: { durationSeconds: true } }),
+    prisma.call.groupBy({ by: ['userId', 'direction'], where, _count: { _all: true } }),
     prisma.user.findMany({ where: { role: 'AGENT' }, select: { id: true, name: true, team: { select: { name: true } } } }),
   ]);
   const tMap = new Map(totals.map((t) => [t.userId, t._count._all]));
   const aMap = new Map(answered.map((a) => [a.userId, a]));
+  const dirMap = new Map();
+  for (const d of byDirection) {
+    const e = dirMap.get(d.userId) || { incoming: 0, outgoing: 0 };
+    if (d.direction === 'INCOMING') e.incoming += d._count._all; else e.outgoing += d._count._all;
+    dirMap.set(d.userId, e);
+  }
 
   const rows = users.map((u) => {
     const total = tMap.get(u.id) || 0;
     const a = aMap.get(u.id);
+    const d = dirMap.get(u.id) || { incoming: 0, outgoing: 0 };
     const stats = buildCallStats({ totalCalls: total, answeredCalls: a?._count._all || 0, talkTimeSeconds: a?._sum.durationSeconds || 0 });
     return {
       agent: u.name,
       team: u.team?.name || '',
       calls: stats.totalCalls,
+      incoming: d.incoming,
+      outgoing: d.outgoing,
       answered: stats.answeredCalls,
       unanswered: stats.unansweredCalls,
       answerRate: `${stats.answerRate}%`,
@@ -157,6 +167,8 @@ export const exportUserPerformance = asyncHandler(async (req, res) => {
       { header: 'Agent', key: 'agent', width: 20 },
       { header: 'Team', key: 'team', width: 16 },
       { header: 'Calls', key: 'calls', width: 10 },
+      { header: 'Incoming', key: 'incoming', width: 10 },
+      { header: 'Outgoing', key: 'outgoing', width: 10 },
       { header: 'Answered', key: 'answered', width: 10 },
       { header: 'Unanswered', key: 'unanswered', width: 12 },
       { header: 'Answer Rate', key: 'answerRate', width: 12 },

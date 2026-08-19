@@ -37,17 +37,28 @@ export const userPerformance = asyncHandler(async (req, res) => {
   const q = req.validatedQuery;
   const where = whereFromQuery(q);
 
-  const [totals, answered, users] = await Promise.all([
+  const [totals, answered, byDirection, users] = await Promise.all([
     prisma.call.groupBy({ by: ['userId'], where, _count: { _all: true } }),
     prisma.call.groupBy({ by: ['userId'], where: { ...where, callStatus: 'ANSWERED' }, _count: { _all: true }, _sum: { durationSeconds: true } }),
+    prisma.call.groupBy({ by: ['userId', 'direction'], where, _count: { _all: true } }),
     prisma.user.findMany({ where: { role: 'AGENT' }, select: { id: true, name: true, teamId: true, team: { select: { name: true } } } }),
   ]);
+
+  // Per-agent incoming / outgoing counts.
+  const dir = new Map(); // userId -> { incoming, outgoing }
+  for (const d of byDirection) {
+    const e = dir.get(d.userId) || { incoming: 0, outgoing: 0 };
+    if (d.direction === 'INCOMING') e.incoming += d._count._all;
+    else e.outgoing += d._count._all;
+    dir.set(d.userId, e);
+  }
 
   const map = mergeGroups(totals, answered, 'userId');
   const rows = users.map((u) => {
     const g = map.get(u.id) || { total: 0, answered: 0, talk: 0 };
+    const d = dir.get(u.id) || { incoming: 0, outgoing: 0 };
     const stats = buildCallStats({ totalCalls: g.total, answeredCalls: g.answered, talkTimeSeconds: g.talk });
-    return { userId: u.id, name: u.name, team: u.team?.name || null, ...stats };
+    return { userId: u.id, name: u.name, team: u.team?.name || null, incoming: d.incoming, outgoing: d.outgoing, ...stats };
   });
   rows.sort((a, b) => b.totalCalls - a.totalCalls);
   res.json({ data: rows });

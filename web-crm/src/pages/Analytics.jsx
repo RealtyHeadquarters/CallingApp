@@ -119,7 +119,7 @@ export default function Analytics() {
             <div className="table-wrap">
               <table className="data">
                 <thead>
-                  <tr><th>Agent</th><th>Team</th><th>Calls</th><th>Answered</th><th>Unanswered</th><th>Answer Rate</th><th>Talk Time</th><th>Avg Talk</th></tr>
+                  <tr><th>Agent</th><th>Team</th><th>Calls</th><th>↙ Incoming</th><th>↗ Outgoing</th><th>Answered</th><th>Unanswered</th><th>Answer Rate</th><th>Talk Time</th><th>Avg Talk</th></tr>
                 </thead>
                 <tbody>
                   {perf.map((u) => (
@@ -127,6 +127,8 @@ export default function Analytics() {
                       <td><strong style={{ fontWeight: 600 }}>{u.name}</strong></td>
                       <td className="muted">{u.team || '—'}</td>
                       <td>{u.totalCalls}</td>
+                      <td style={{ color: 'var(--accent-500)', fontWeight: 600 }}>{u.incoming ?? 0}</td>
+                      <td style={{ color: 'var(--brand-500)', fontWeight: 600 }}>{u.outgoing ?? 0}</td>
                       <td>{u.answeredCalls}</td>
                       <td>{u.unansweredCalls}</td>
                       <td>{u.answerRate}%</td>

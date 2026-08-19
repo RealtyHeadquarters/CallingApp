@@ -69,6 +69,8 @@ export default function UserDetail() {
       <div className="section-head"><h2>Performance</h2></div>
       <div className="kpi-grid">
         <Kpi label="Total Calls" value={stats?.totalCalls ?? 0} />
+        <Kpi label="↙ Incoming" value={stats?.incoming ?? 0} />
+        <Kpi label="↗ Outgoing" value={stats?.outgoing ?? 0} />
         <Kpi label="Answered" value={stats?.answeredCalls ?? 0} />
         <Kpi label="Unanswered" value={stats?.unansweredCalls ?? 0} />
         <Kpi label="Answer Rate" value={`${stats?.answerRate ?? 0}%`} accent />
