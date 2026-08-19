@@ -201,6 +201,80 @@ export const syncCalls = asyncHandler(async (req, res) => {
   res.json({ created: created.length, skipped, calls: created });
 });
 
+// ── Manually log a call from the CRM (fallback when auto-capture misses one) ──
+export const manualLogSchema = z.object({
+  userId: z.string().min(1, 'Select the agent'),
+  phoneNumber: z.string().min(3),
+  direction: z.enum(CALL_DIRECTIONS).default('OUTGOING'),
+  callStatus: z.enum(CALL_STATUSES).default('ANSWERED'),
+  durationSeconds: z.number().int().min(0).optional(),
+  callStartTime: z.coerce.date().optional(),
+  clientId: z.string().optional().nullable(),
+  customerName: z.string().trim().optional(),
+  disposition: z.enum(DISPOSITIONS).optional(),
+  remark: z.string().trim().optional(),
+  leadStatus: z.enum(LEAD_STATUSES).optional(),
+});
+
+export const manualLogCall = asyncHandler(async (req, res) => {
+  const b = req.body;
+
+  // The call is attributed to the chosen agent. Managers may only log for their team.
+  const agent = await prisma.user.findUnique({ where: { id: b.userId }, select: { id: true, teamId: true } });
+  if (!agent) throw ApiError.badRequest('Selected agent does not exist');
+  if (req.user.role === 'MANAGER' && agent.teamId !== req.user.teamId) {
+    throw ApiError.forbidden('You can only log calls for agents in your team');
+  }
+
+  const customerName = b.customerName?.trim() || null;
+  const start = b.callStartTime || new Date();
+  const answered = b.callStatus === 'ANSWERED';
+
+  // Resolve or create the linked lead (so a manual call becomes a CRM activity).
+  let clientId = b.clientId || (await resolveClientId(agent, b.phoneNumber, null));
+  if (customerName && !clientId) {
+    const existing = await prisma.client.findFirst({ where: { mobile: b.phoneNumber }, select: { id: true } });
+    if (existing) {
+      clientId = existing.id;
+      await prisma.client.update({ where: { id: existing.id }, data: { name: customerName } });
+    } else {
+      const leadId = await generateLeadId();
+      const created = await prisma.client.create({
+        data: { leadId, name: customerName, mobile: b.phoneNumber, source: 'Manual', leadStatus: 'CONTACTED', assignedUserId: agent.id },
+        select: { id: true },
+      });
+      clientId = created.id;
+    }
+  }
+
+  const callId = await generateCallId(start);
+  const call = await prisma.call.create({
+    data: {
+      callId,
+      userId: agent.id,
+      clientId,
+      phoneNumber: b.phoneNumber,
+      customerName,
+      direction: b.direction,
+      callStatus: b.callStatus,
+      disposition: b.disposition ?? null,
+      remark: b.remark?.trim() || null,
+      callStartTime: start,
+      callAnswerTime: answered ? start : null,
+      callEndTime: new Date(start.getTime() + (answered ? (b.durationSeconds ?? 0) * 1000 : 0)),
+      durationSeconds: answered ? b.durationSeconds ?? 0 : 0,
+    },
+    select: callSelect,
+  });
+
+  if (b.leadStatus && clientId) {
+    await prisma.client.update({ where: { id: clientId }, data: { leadStatus: b.leadStatus } });
+  }
+
+  recordAudit(req, { action: 'CALL_MANUAL', entityType: 'Call', entityId: call.id, description: `Manually logged ${callId} (${b.direction})` });
+  res.status(201).json({ call });
+});
+
 // ── Disposition + mandatory remark, optional follow-up lead-status change (spec §14/§15) ──
 export const dispositionSchema = z.object({
   disposition: z.enum(DISPOSITIONS),
