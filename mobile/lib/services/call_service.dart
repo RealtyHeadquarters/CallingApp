@@ -233,6 +233,66 @@ class CallService {
     return res.data['call'] as Map<String, dynamic>;
   }
 
+  static const _incomingWatermarkKey = 'incoming_classify_watermark';
+
+  /// New INCOMING calls from the device call log that the agent hasn't yet
+  /// classified (Personal/Office). Reads from a watermark so we never re-ask.
+  /// This is reliable on MIUI/HyperOS where real-time phone-state events don't
+  /// fire in the background — the log is read whenever the app is opened.
+  Future<List<Map<String, dynamic>>> fetchNewIncoming() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      int? wm = prefs.getInt(_incomingWatermarkKey);
+      if (wm == null) {
+        // First run: start from now so we don't flood with call history.
+        await prefs.setInt(_incomingWatermarkKey, DateTime.now().millisecondsSinceEpoch);
+        return [];
+      }
+      final Iterable<CallLogEntry> entries = await CallLog.query(dateFrom: wm + 1);
+      final incoming = entries.where((e) {
+        final t = e.callType;
+        final isIncoming = t == CallType.incoming ||
+            t == CallType.wifiIncoming ||
+            t == CallType.missed ||
+            t == CallType.rejected ||
+            t == CallType.blocked;
+        return isIncoming && (e.number ?? '').isNotEmpty && (e.timestamp ?? 0) > wm;
+      }).toList()
+        ..sort((a, b) => (a.timestamp ?? 0).compareTo(b.timestamp ?? 0)); // oldest first
+
+      return incoming.map((e) {
+        final duration = e.duration ?? 0;
+        String status;
+        switch (e.callType) {
+          case CallType.missed:
+            status = 'NO_ANSWER';
+            break;
+          case CallType.rejected:
+          case CallType.blocked:
+            status = 'REJECTED';
+            break;
+          default:
+            status = duration > 0 ? 'ANSWERED' : 'NO_ANSWER';
+        }
+        return {
+          'number': e.number,
+          'startMs': e.timestamp ?? 0,
+          'callStatus': status,
+          'durationSeconds': status == 'ANSWERED' ? duration : 0,
+        };
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Mark an incoming call as classified so it isn't asked about again.
+  Future<void> markIncomingClassified(int startMs) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cur = prefs.getInt(_incomingWatermarkKey) ?? 0;
+    if (startMs > cur) await prefs.setInt(_incomingWatermarkKey, startMs);
+  }
+
   /// Look up a client by phone number (used for the incoming caller screen).
   Future<Map<String, dynamic>?> lookup(String phoneNumber) async {
     try {

@@ -4,7 +4,6 @@ import 'package:phone_state/phone_state.dart';
 import 'package:provider/provider.dart';
 import '../services/api_client.dart';
 import '../services/call_service.dart';
-import '../services/pending_incoming.dart';
 import '../state/auth_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
@@ -37,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       completePendingCall(context);   // finish an outgoing call interrupted by an app kill
-      _handleIncoming();              // classify an incoming call that just ended
+      _processIncomingQueue();        // classify any new incoming calls
     });
     _listenPhoneState();
   }
@@ -51,7 +50,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _handleIncoming();
+    if (state == AppLifecycleState.resumed) _processIncomingQueue();
   }
 
   void _listenPhoneState() {
@@ -59,69 +58,71 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _phoneSub = PhoneState.stream.listen((event) async {
         final number = event.number;
         if (event.status == PhoneStateStatus.CALL_INCOMING && number != null && number.isNotEmpty) {
-          // Remember the incoming call so we can classify it once it ends
-          // (persisted so it survives an app kill during the call).
-          await PendingIncomingStore.save(PendingIncoming(number: number, start: DateTime.now()));
           final client = await _call.lookup(number);
           if (mounted) _showIncomingBanner(number, client);
         } else if (event.status == PhoneStateStatus.CALL_ENDED) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).clearMaterialBanners();
-          await _handleIncoming();
+          // Give the OS a moment to write the call log, then classify.
+          await Future.delayed(const Duration(milliseconds: 1500));
+          await _processIncomingQueue();
         }
       });
-    } catch (_) {/* phone state unavailable */}
+    } catch (_) {/* phone state unavailable — resume-based classify still works */}
   }
 
-  // After an incoming call ends: ask the agent if it was Personal or Office.
-  // Only "Office" calls are recorded in the CRM (then the remark flow opens).
-  Future<void> _handleIncoming() async {
+  // Reads new INCOMING calls from the device call log and, for each, asks the
+  // agent Personal vs Office. Only Office calls are recorded. Runs on app
+  // open/resume/call-end — reliable on MIUI where background events don't fire.
+  Future<void> _processIncomingQueue() async {
     if (_handlingIncoming) return;
-    final pending = await PendingIncomingStore.get();
-    if (pending == null) return;
     _handlingIncoming = true;
     try {
-      // Give the OS a moment to write the call log, then read the outcome.
-      CallOutcome? outcome;
-      for (var i = 0; i < 3 && outcome == null; i++) {
-        outcome = await _call.captureFromCallLog(pending.number, pending.start);
-        if (outcome == null) await Future.delayed(const Duration(seconds: 1));
+      final queue = await _call.fetchNewIncoming();
+      debugPrint('[Incoming] queue: ${queue.length} new incoming call(s)');
+      for (final item in queue) {
+        if (!mounted) break;
+        final number = item['number'] as String;
+        final startMs = item['startMs'] as int;
+        final status = item['callStatus'] as String;
+        final duration = item['durationSeconds'] as int;
+
+        final client = await _call.lookup(number);
+        if (!mounted) break;
+        final office = await _askPersonalOrOffice(number, client, status, duration);
+        await _call.markIncomingClassified(startMs); // never ask again
+
+        if (office == true && mounted) {
+          final created = await _call.logIncoming(
+            phoneNumber: number,
+            callStatus: status,
+            durationSeconds: duration,
+            startTime: DateTime.fromMillisecondsSinceEpoch(startMs),
+            clientId: client?['id'] as String?,
+          );
+          if (!mounted) break;
+          await Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => DispositionScreen(
+              callDbId: created['id'],
+              clientId: client?['id'] as String?,
+              phoneNumber: number,
+              // Prefill the real (read-only) status + duration from the call log.
+              outcome: CallOutcome(callStatus: status, durationSeconds: duration),
+            ),
+          ));
+        }
       }
-      final client = await _call.lookup(pending.number);
-      if (!mounted) { return; }
-
-      final office = await _askPersonalOrOffice(pending.number, client, outcome);
-      await PendingIncomingStore.clear();
-      if (office != true || !mounted) return;
-
-      final created = await _call.logIncoming(
-        phoneNumber: pending.number,
-        callStatus: outcome?.callStatus ?? 'NO_ANSWER',
-        durationSeconds: outcome?.durationSeconds ?? 0,
-        startTime: pending.start,
-        clientId: client?['id'] as String?,
-      );
-      if (!mounted) return;
-      await Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => DispositionScreen(
-          callDbId: created['id'],
-          clientId: client?['id'] as String?,
-          phoneNumber: pending.number,
-          outcome: outcome,
-        ),
-      ));
       if (mounted) setState(() {});
-    } catch (_) {
-      await PendingIncomingStore.clear();
+    } catch (e) {
+      debugPrint('[Incoming] error: $e');
     } finally {
       _handlingIncoming = false;
     }
   }
 
-  Future<bool?> _askPersonalOrOffice(String number, Map<String, dynamic>? client, CallOutcome? outcome) {
+  Future<bool?> _askPersonalOrOffice(String number, Map<String, dynamic>? client, String status, int dur) {
     final name = client?['name'] as String?;
     final company = client?['company'] as String?;
-    final dur = outcome?.durationSeconds ?? 0;
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
