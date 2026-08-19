@@ -110,6 +110,66 @@ export default function Analytics() {
             </div>
           </div>
 
+          {/* Agent-wise charts (from the performance data) */}
+          <div className="section-head" style={{ marginTop: 22 }}><h2>By Agent</h2></div>
+          <div className="grid-2">
+            <div className="card card-pad">
+              <div className="section-head"><h2>Calls by Agent (Incoming / Outgoing)</h2></div>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={perf} margin={{ bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} tickFormatter={(n) => (n || '').split(' ')[0]} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="incoming" name="Incoming" stackId="a" fill="#10c5c0" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="outgoing" name="Outgoing" stackId="a" fill="#5b60f0" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="card card-pad">
+              <div className="section-head"><h2>Answer Rate by Agent (%)</h2></div>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={perf} margin={{ bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} tickFormatter={(n) => (n || '').split(' ')[0]} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
+                  <Tooltip formatter={(v) => [`${v}%`, 'Answer Rate']} />
+                  <Bar dataKey="answerRate" name="Answer Rate" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="card card-pad">
+              <div className="section-head"><h2>Answered vs Unanswered by Agent</h2></div>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={perf} margin={{ bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} tickFormatter={(n) => (n || '').split(' ')[0]} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="answeredCalls" name="Answered" stackId="b" fill="#16a34a" />
+                  <Bar dataKey="unansweredCalls" name="Unanswered" stackId="b" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="card card-pad">
+              <div className="section-head"><h2>Total Talk Time by Agent (min)</h2></div>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={perf.map((u) => ({ ...u, talkMin: Math.round((u.totalTalkTimeSeconds || 0) / 60) }))} margin={{ bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eef0f5" />
+                  <XAxis dataKey="name" tick={{ fontSize: 10 }} tickFormatter={(n) => (n || '').split(' ')[0]} interval={0} angle={-20} textAnchor="end" height={50} />
+                  <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip formatter={(v) => [`${v} min`, 'Talk Time']} />
+                  <Bar dataKey="talkMin" name="Talk Time (min)" fill="#0ea5a4" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
           {/* User performance (spec §27) */}
           <div className="section-head" style={{ marginTop: 22 }}>
             <h2>Agent Performance</h2>
