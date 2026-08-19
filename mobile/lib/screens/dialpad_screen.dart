@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/models.dart';
 import '../services/api_client.dart';
 import '../theme/app_theme.dart';
@@ -15,19 +16,25 @@ class DialPadScreen extends StatefulWidget {
 
 class _DialPadScreenState extends State<DialPadScreen>
     with WidgetsBindingObserver, CallFlowMixin<DialPadScreen> {
-  String _number = '';
+  final _numberCtrl = TextEditingController();
+  String _lastText = '';
   LookupResult? _lookup;
   Timer? _debounce;
+
+  String get _number => _numberCtrl.text.trim();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _numberCtrl.addListener(_onChanged);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _numberCtrl.removeListener(_onChanged);
+    _numberCtrl.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -38,18 +45,55 @@ class _DialPadScreenState extends State<DialPadScreen>
   @override
   void onCallFlowDone() => _clear();
 
+  // Fires on text changes (keypad, paste, manual edits) — not cursor moves.
+  void _onChanged() {
+    if (_numberCtrl.text == _lastText) return;
+    _lastText = _numberCtrl.text;
+    setState(() {}); // refresh call button / backspace state
+    _scheduleLookup();
+  }
+
+  // Insert a digit at the current cursor position (or append if none).
   void _press(String d) {
-    setState(() => _number += d);
-    _scheduleLookup();
+    final t = _numberCtrl.text;
+    final sel = _numberCtrl.selection;
+    final start = sel.start >= 0 ? sel.start : t.length;
+    final end = sel.end >= 0 ? sel.end : t.length;
+    final newText = t.replaceRange(start, end, d);
+    _numberCtrl.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + d.length),
+    );
   }
 
+  // Delete at the cursor (selection, or the char before it).
   void _backspace() {
-    if (_number.isEmpty) return;
-    setState(() => _number = _number.substring(0, _number.length - 1));
-    _scheduleLookup();
+    final t = _numberCtrl.text;
+    if (t.isEmpty) return;
+    final sel = _numberCtrl.selection;
+    final start = sel.start, end = sel.end;
+    if (start < 0) {
+      _numberCtrl.value = TextEditingValue(
+        text: t.substring(0, t.length - 1),
+        selection: TextSelection.collapsed(offset: t.length - 1),
+      );
+    } else if (start != end) {
+      _numberCtrl.value = TextEditingValue(
+        text: t.replaceRange(start, end, ''),
+        selection: TextSelection.collapsed(offset: start),
+      );
+    } else if (start > 0) {
+      _numberCtrl.value = TextEditingValue(
+        text: t.replaceRange(start - 1, start, ''),
+        selection: TextSelection.collapsed(offset: start - 1),
+      );
+    }
   }
 
-  void _clear() => setState(() { _number = ''; _lookup = null; });
+  void _clear() {
+    _numberCtrl.clear();
+    setState(() => _lookup = null);
+  }
 
   void _scheduleLookup() {
     _debounce?.cancel();
@@ -72,12 +116,23 @@ class _DialPadScreenState extends State<DialPadScreen>
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-            child: Text(
-              _number.isEmpty ? 'Enter number' : _number,
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w600,
-                color: _number.isEmpty ? AppColors.text3 : AppColors.text,
+            // Editable field: tap to position cursor, long-press to paste/copy.
+            // TextInputType.none keeps the OS keyboard hidden (we use the pad).
+            child: TextField(
+              controller: _numberCtrl,
+              keyboardType: TextInputType.none,
+              showCursor: true,
+              cursorColor: AppColors.brand,
+              cursorWidth: 2.4,
+              textAlign: TextAlign.center,
+              enableInteractiveSelection: true,
+              style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w600, color: AppColors.text, letterSpacing: 1.5),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9*#+ ]'))],
+              decoration: const InputDecoration(
+                border: InputBorder.none,
+                isCollapsed: true,
+                hintText: 'Enter number',
+                hintStyle: TextStyle(color: AppColors.text3, fontWeight: FontWeight.w500, letterSpacing: 0),
               ),
             ),
           ),
