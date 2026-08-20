@@ -46,11 +46,13 @@ export const login = asyncHandler(async (req, res) => {
   const isSuperAdmin = user.role === 'SUPER_ADMIN';
   let subscription = null;
   let features = isSuperAdmin ? [...FEATURE_KEYS] : [];
+  let branding = null;
   const permissions = computePermissions(user.role);
   if (user.tenantId) {
     const tenant = await prisma.tenant.findUnique({
       where: { id: user.tenantId },
       select: {
+        name: true, logoUrl: true, primaryColor: true, secondaryColor: true,
         featureOverrides: true,
         subscription: {
           select: {
@@ -63,9 +65,10 @@ export const login = asyncHandler(async (req, res) => {
     });
     subscription = resolveSubscription(tenant?.subscription);
     features = computeFeatures(tenant?.subscription?.plan || null, tenant?.featureOverrides);
+    branding = tenant ? { name: tenant.name, logoUrl: tenant.logoUrl, primaryColor: tenant.primaryColor, secondaryColor: tenant.secondaryColor } : null;
   }
 
-  res.json({ token: signToken(user), user: publicUser(user), subscription, features, permissions });
+  res.json({ token: signToken(user), user: publicUser(user), subscription, features, permissions, branding });
 });
 
 export const me = asyncHandler(async (req, res) => {
@@ -77,6 +80,7 @@ export const me = asyncHandler(async (req, res) => {
     subscription: req.subscription ?? null,
     features: req.features ?? [],
     permissions: req.permissions ?? [],
+    branding: req.branding ?? null,
   });
 });
 

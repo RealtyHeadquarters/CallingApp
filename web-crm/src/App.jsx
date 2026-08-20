@@ -18,6 +18,7 @@ import Tenants from './pages/superadmin/Tenants.jsx';
 import TenantDetail from './pages/superadmin/TenantDetail.jsx';
 import Plans from './pages/superadmin/Plans.jsx';
 import Subscription from './pages/Subscription.jsx';
+import Activity from './pages/Activity.jsx';
 import { ExpiredScreen } from './components/SubscriptionGate.jsx';
 
 // `superAdmin` gates the platform-owner area. The two worlds never mix:
@@ -50,6 +51,7 @@ export default function App() {
       <Route path="/users" element={<Protected><Users /></Protected>} />
       <Route path="/users/:id" element={<Protected><UserDetail /></Protected>} />
       <Route path="/teams" element={<Protected><Teams /></Protected>} />
+      <Route path="/activity" element={<Protected><Activity /></Protected>} />
       {/* Reachable even when read-only, so the client can review billing */}
       <Route path="/subscription" element={<Protected allowExpired><Subscription /></Protected>} />
 

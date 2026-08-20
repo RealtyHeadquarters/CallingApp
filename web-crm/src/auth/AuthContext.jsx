@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [subscription, setSubscription] = useState(null);
   const [features, setFeatures] = useState([]);
   const [permissions, setPermissions] = useState([]);
+  const [branding, setBranding] = useState(null);
   const [loading, setLoading] = useState(true);
 
   function applyAuth(data) {
@@ -15,7 +16,17 @@ export function AuthProvider({ children }) {
     setSubscription(data.subscription || null);
     setFeatures(data.features || []);
     setPermissions(data.permissions || []);
+    setBranding(data.branding || null);
   }
+
+  // White-label: override brand colours from the tenant's branding.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (branding?.primaryColor) root.style.setProperty('--brand-500', branding.primaryColor);
+    else root.style.removeProperty('--brand-500');
+    if (branding?.secondaryColor) root.style.setProperty('--accent-500', branding.secondaryColor);
+    else root.style.removeProperty('--accent-500');
+  }, [branding]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -36,7 +47,7 @@ export function AuthProvider({ children }) {
 
   function logout() {
     localStorage.removeItem('token');
-    setUser(null); setSubscription(null); setFeatures([]); setPermissions([]);
+    setUser(null); setSubscription(null); setFeatures([]); setPermissions([]); setBranding(null);
     location.href = '/login';
   }
 
@@ -45,7 +56,7 @@ export function AuthProvider({ children }) {
   const hasFeature = (f) => features.includes(f);
 
   return (
-    <AuthContext.Provider value={{ user, subscription, features, permissions, loading, login, logout, can, hasFeature }}>
+    <AuthContext.Provider value={{ user, subscription, features, permissions, branding, loading, login, logout, can, hasFeature }}>
       {children}
     </AuthContext.Provider>
   );
