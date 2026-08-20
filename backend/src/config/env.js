@@ -21,6 +21,10 @@ export const env = {
   jwtSecret: required('JWT_SECRET', 'dev-insecure-secret-change-me'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   telephonyWebhookSecret: process.env.TELEPHONY_WEBHOOK_SECRET || '',
+  // Billing (Razorpay). When unset, billing endpoints report "not configured".
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID || '',
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET || '',
+  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
 };
 
 export const isProd = env.nodeEnv === 'production';

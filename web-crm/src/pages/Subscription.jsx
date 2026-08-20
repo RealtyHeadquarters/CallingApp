@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import api, { apiError } from '../api/client.js';
+import { useAuth } from '../auth/AuthContext.jsx';
 import { Loading } from '../components/ui.jsx';
 import UsageBar from '../components/UsageBar.jsx';
-import { fmtDate } from '../lib/format.js';
+import { startCheckout } from '../lib/razorpay.js';
+import { fmtDateTime, fmtDate } from '../lib/format.js';
 
 const STATE = {
   TRIAL: { label: 'Trial', color: '#2f6bff' },
@@ -16,16 +18,33 @@ export const money = (paise) => '₹' + Math.round((paise || 0) / 100).toLocaleS
 const limit = (n) => (n == null ? 'Unlimited' : n.toLocaleString('en-IN'));
 
 export default function Subscription() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN';
   const [sub, setSub] = useState(undefined);
   const [usage, setUsage] = useState(null);
   const [plans, setPlans] = useState([]);
+  const [billing, setBilling] = useState({ configured: false, keyId: null });
+  const [payments, setPayments] = useState([]);
+  const [cycle, setCycle] = useState('MONTHLY');
+  const [busyPlan, setBusyPlan] = useState('');
+  const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    Promise.all([api.get('/subscription'), api.get('/subscription/plans')])
-      .then(([s, p]) => { setSub(s.data.subscription); setUsage(s.data.usage || null); setPlans(p.data.data); })
+  function load() {
+    Promise.all([api.get('/subscription'), api.get('/subscription/plans'), api.get('/billing/config')])
+      .then(([s, p, b]) => { setSub(s.data.subscription); setUsage(s.data.usage || null); setPlans(p.data.data); setBilling(b.data); })
       .catch((e) => setError(apiError(e)));
-  }, []);
+    if (isAdmin) api.get('/billing/payments').then((r) => setPayments(r.data.data)).catch(() => {});
+  }
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function subscribe(plan) {
+    setBusyPlan(plan.id); setNotice('');
+    try {
+      const r = await startCheckout({ planId: plan.id, billingCycle: cycle, onDone: load });
+      if (r.message) setNotice(r.message);
+    } catch (e) { setNotice(apiError(e)); } finally { setBusyPlan(''); }
+  }
 
   if (error) return <div className="card card-pad error-text">{error}</div>;
   if (sub === undefined) return <Loading />;
@@ -76,7 +95,16 @@ export default function Subscription() {
         </div>
       )}
 
-      <div className="section-head"><h2>Available Plans</h2></div>
+      <div className="section-head">
+        <h2>Available Plans</h2>
+        {billing.configured && isAdmin && (
+          <div className="pill-tabs" style={{ margin: 0 }}>
+            <button className={`pill ${cycle === 'MONTHLY' ? 'active' : ''}`} onClick={() => setCycle('MONTHLY')}>Monthly</button>
+            <button className={`pill ${cycle === 'YEARLY' ? 'active' : ''}`} onClick={() => setCycle('YEARLY')}>Yearly</button>
+          </div>
+        )}
+      </div>
+      {notice && <div className="card card-pad" style={{ marginBottom: 12 }}>{notice}</div>}
       <div className="kgrid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
         {plans.map((p) => (
           <div key={p.id} className="card card-pad" style={{ border: sub?.plan?.id === p.id ? '2px solid var(--brand-500)' : undefined }}>
@@ -91,10 +119,34 @@ export default function Subscription() {
               <li>{limit(p.callLimit)} calls / period</li>
               <li>{p.storageLimitMb == null ? 'Unlimited' : `${p.storageLimitMb} MB`} storage</li>
             </ul>
+            {isAdmin && billing.configured && sub?.plan?.id !== p.id && (p.priceMonthly > 0 || p.priceYearly > 0) && (
+              <button className="btn primary" style={{ marginTop: 12, width: '100%' }} disabled={busyPlan === p.id} onClick={() => subscribe(p)}>
+                {busyPlan === p.id ? 'Processing…' : `Choose ${cycle === 'YEARLY' ? 'yearly' : 'monthly'}`}
+              </button>
+            )}
           </div>
         ))}
       </div>
-      <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>To change your plan, contact your account manager.</p>
+      {!billing.configured && <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>To change your plan, contact your account manager.</p>}
+
+      {isAdmin && payments.length > 0 && (
+        <>
+          <div className="section-head" style={{ marginTop: 22 }}><h2>Payment History</h2></div>
+          <div className="card"><div className="table-wrap"><table className="data">
+            <thead><tr><th>Date</th><th>Plan</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              {payments.map((pm) => (
+                <tr key={pm.id}>
+                  <td className="muted">{fmtDateTime(pm.paidAt || pm.createdAt)}</td>
+                  <td>{pm.planName || '—'}</td>
+                  <td>{money(pm.amount)}</td>
+                  <td><span className={`badge ${pm.status === 'CAPTURED' ? 'green' : pm.status === 'FAILED' ? 'red' : ''}`}>{pm.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div></div>
+        </>
+      )}
     </>
   );
 }

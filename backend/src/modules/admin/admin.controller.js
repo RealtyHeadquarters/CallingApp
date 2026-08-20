@@ -12,6 +12,7 @@ import {
 import { FEATURE_KEYS, FEATURE_LABELS } from '../../config/features.js';
 import { computeFeatures } from '../../services/entitlements.js';
 import { getUsage } from '../../services/usage.js';
+import { serializePayment } from '../billing/billing.controller.js';
 
 // Feature catalog for the console (checkbox lists).
 export const listFeatures = (_req, res) => {
@@ -26,12 +27,13 @@ const TENANT_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'EXPIRED'];
 
 // ── Platform overview ───────────────────────────────────────────────────────
 export const platformStats = asyncHandler(async (_req, res) => {
-  const [byStatus, tenantsTotal, totalUsers, totalCalls, totalLeads, recentTenants] = await Promise.all([
+  const [byStatus, tenantsTotal, totalUsers, totalCalls, totalLeads, revenue, recentTenants] = await Promise.all([
     prisma.tenant.groupBy({ by: ['status'], _count: { _all: true } }),
     prisma.tenant.count(),
     prisma.user.count({ where: { role: { not: 'SUPER_ADMIN' } } }),
     prisma.call.count(),
     prisma.client.count(),
+    prisma.payment.aggregate({ where: { status: 'CAPTURED' }, _sum: { amount: true } }),
     prisma.tenant.findMany({
       orderBy: { createdAt: 'desc' },
       take: 5,
@@ -45,8 +47,19 @@ export const platformStats = asyncHandler(async (_req, res) => {
   res.json({
     tenants: { total: tenantsTotal, byStatus: statusCounts },
     totals: { users: totalUsers, calls: totalCalls, leads: totalLeads },
+    revenue: revenue._sum.amount || 0, // total captured, in paise
     recentTenants,
   });
+});
+
+// A tenant's payment history (super admin).
+export const listTenantPayments = asyncHandler(async (req, res) => {
+  await requireTenant(req.params.id);
+  const payments = await prisma.payment.findMany({
+    where: { tenantId: req.params.id }, orderBy: { createdAt: 'desc' }, take: 100,
+    include: { plan: { select: { name: true } } },
+  });
+  res.json({ data: payments.map(serializePayment) });
 });
 
 // ── List tenants (with per-tenant counts) ───────────────────────────────────

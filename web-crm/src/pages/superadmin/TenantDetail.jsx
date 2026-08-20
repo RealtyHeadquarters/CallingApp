@@ -27,9 +27,11 @@ export default function TenantDetail() {
   const load = useCallback(() => {
     api.get(`/admin/tenants/${id}`).then((r) => setData(r.data)).catch((e) => setError(apiError(e)));
   }, [id]);
+  const [payments, setPayments] = useState([]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api.get('/admin/plans').then((r) => setPlans(r.data.data)).catch(() => {}); }, []);
   useEffect(() => { api.get('/admin/features').then((r) => setFeatureCatalog(r.data.features)).catch(() => {}); }, []);
+  useEffect(() => { api.get(`/admin/tenants/${id}/payments`).then((r) => setPayments(r.data.data)).catch(() => {}); }, [id]);
 
   async function setStatus(next) {
     const verb = next === 'SUSPENDED' ? 'Suspend' : 'Activate';
@@ -148,6 +150,26 @@ export default function TenantDetail() {
           </table>
         </div>
       </div>
+
+      {/* Payments */}
+      {payments.length > 0 && (
+        <>
+          <div className="section-head" style={{ marginTop: 22 }}><h2>Payments</h2></div>
+          <div className="card"><div className="table-wrap"><table className="data">
+            <thead><tr><th>Date</th><th>Plan</th><th>Amount</th><th>Status</th></tr></thead>
+            <tbody>
+              {payments.map((pm) => (
+                <tr key={pm.id}>
+                  <td className="muted">{fmtDate(pm.paidAt || pm.createdAt)}</td>
+                  <td>{pm.planName || '—'}</td>
+                  <td>₹{Math.round((pm.amount || 0) / 100).toLocaleString('en-IN')}</td>
+                  <td>{titleCase(pm.status)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div></div>
+        </>
+      )}
 
       {showAddUser && <AddUserModal tenantId={id} onClose={() => setShowAddUser(false)} onSaved={() => { setShowAddUser(false); load(); }} />}
       {resetUser && <ResetPasswordModal tenantId={id} user={resetUser} onClose={() => setResetUser(null)} onSaved={() => setResetUser(null)} />}

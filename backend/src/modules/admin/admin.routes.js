@@ -15,6 +15,7 @@ import {
   assignPlan, assignPlanSchema, startTrial, startTrialSchema,
   extendSubscription, extendSchema, cancelSubscription,
   listFeatures, setTenantFeatures, setTenantFeaturesSchema,
+  listTenantPayments,
 } from './admin.controller.js';
 
 const router = Router();
@@ -48,5 +49,6 @@ router.put('/tenants/:id/subscription', validate(assignPlanSchema), assignPlan);
 router.post('/tenants/:id/subscription/trial', validate(startTrialSchema), startTrial);
 router.post('/tenants/:id/subscription/extend', validate(extendSchema), extendSubscription);
 router.post('/tenants/:id/subscription/cancel', cancelSubscription);
+router.get('/tenants/:id/payments', listTenantPayments);
 
 export default router;

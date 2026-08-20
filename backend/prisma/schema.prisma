@@ -134,6 +134,7 @@ model Tenant {
   notifications  Notification[]
   auditLogs      AuditLog[]
   subscription   Subscription?
+  payments       Payment[]
 
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
@@ -421,6 +422,7 @@ model SubscriptionPlan {
   sortOrder      Int       @default(0) @map("sort_order")
 
   subscriptions  Subscription[]
+  payments       Payment[]
 
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
@@ -457,4 +459,38 @@ model Subscription {
 
   @@index([status])
   @@map("subscriptions")
+}
+
+enum PaymentStatus {
+  CREATED   // order created, awaiting payment
+  CAPTURED  // paid
+  FAILED
+  REFUNDED
+}
+
+// A payment record (one per order attempt). On CAPTURED, the tenant's subscription
+// is activated/renewed. Tenant-owned (isolated).
+model Payment {
+  id                String        @id @default(cuid())
+  tenantId          String        @map("tenant_id")
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  planId            String?       @map("plan_id")
+  plan              SubscriptionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  amount            Int           // minor units (paise)
+  currency          String        @default("INR")
+  status            PaymentStatus @default(CREATED)
+  provider          String        @default("razorpay")
+  providerOrderId   String?       @map("provider_order_id")
+  providerPaymentId String?       @unique @map("provider_payment_id")
+  billingCycle      BillingCycle  @default(MONTHLY) @map("billing_cycle")
+  paidAt            DateTime?     @map("paid_at")
+
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([status])
+  @@map("payments")
 }
