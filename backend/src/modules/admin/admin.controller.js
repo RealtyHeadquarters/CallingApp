@@ -9,6 +9,13 @@ import { createTenantWithAdmin } from './admin.service.js';
 import {
   serializeSubscription, planPeriodFields, trialFields, extendFields,
 } from '../subscriptions/subscription.service.js';
+import { FEATURE_KEYS, FEATURE_LABELS } from '../../config/features.js';
+import { computeFeatures } from '../../services/entitlements.js';
+
+// Feature catalog for the console (checkbox lists).
+export const listFeatures = (_req, res) => {
+  res.json({ features: FEATURE_KEYS.map((k) => ({ key: k, label: FEATURE_LABELS[k] })) });
+};
 
 // NOTE: every handler here runs under the SUPER_ADMIN (bypass) context, so
 // Prisma queries are NOT auto-scoped — they intentionally span all tenants.
@@ -93,7 +100,7 @@ export const getTenant = asyncHandler(async (req, res) => {
     select: {
       id: true, name: true, slug: true, status: true,
       logoUrl: true, primaryColor: true, secondaryColor: true, customDomain: true,
-      contactEmail: true, contactPhone: true, createdAt: true, updatedAt: true,
+      contactEmail: true, contactPhone: true, featureOverrides: true, createdAt: true, updatedAt: true,
       _count: { select: { users: true, calls: true, clients: true, followUps: true } },
     },
   });
@@ -119,7 +126,22 @@ export const getTenant = asyncHandler(async (req, res) => {
     },
     users,
     subscription: serializeSubscription(sub),
+    features: computeFeatures(sub?.plan || null, tenant.featureOverrides),
+    featureOverrides: tenant.featureOverrides || {},
   });
+});
+
+// Per-tenant feature overrides (add/remove on top of the plan).
+export const setTenantFeaturesSchema = z.object({ overrides: z.record(z.boolean()) });
+export const setTenantFeatures = asyncHandler(async (req, res) => {
+  const tenant = await requireTenant(req.params.id);
+  const overrides = {};
+  for (const [k, v] of Object.entries(req.body.overrides)) {
+    if (FEATURE_KEYS.includes(k)) overrides[k] = !!v;
+  }
+  const updated = await prisma.tenant.update({ where: { id: tenant.id }, data: { featureOverrides: overrides }, select: { featureOverrides: true } });
+  recordAudit(req, { action: 'TENANT_FEATURES', entityType: 'Tenant', entityId: tenant.id, description: `Updated feature overrides for ${tenant.name}` });
+  res.json({ featureOverrides: updated.featureOverrides });
 });
 
 // ── Plan catalog (global; not tenant-scoped) ────────────────────────────────
@@ -136,6 +158,7 @@ const planBody = {
   userLimit: z.number().int().positive().nullable().optional(),
   callLimit: z.number().int().positive().nullable().optional(),
   storageLimitMb: z.number().int().positive().nullable().optional(),
+  features: z.array(z.enum(FEATURE_KEYS)).optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 };

@@ -7,6 +7,8 @@ import { recordAudit } from '../../utils/audit.js';
 import { isProd } from '../../config/env.js';
 import { hashPassword, verifyPassword, signToken, publicUser } from './auth.service.js';
 import { resolveSubscription } from '../subscriptions/subscription.service.js';
+import { computeFeatures, computePermissions } from '../../services/entitlements.js';
+import { FEATURE_KEYS } from '../../config/features.js';
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -39,21 +41,43 @@ export const login = asyncHandler(async (req, res) => {
     description: `${user.name} logged in`,
   });
 
-  // Include the effective subscription state so the client can gate immediately.
+  // Include effective subscription state + entitlements so the client can gate
+  // immediately (also served on every request via /auth/me).
+  const isSuperAdmin = user.role === 'SUPER_ADMIN';
   let subscription = null;
+  let features = isSuperAdmin ? [...FEATURE_KEYS] : [];
+  const permissions = computePermissions(user.role);
   if (user.tenantId) {
-    const sub = await prisma.subscription.findUnique({ where: { tenantId: user.tenantId } });
-    subscription = resolveSubscription(sub);
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: user.tenantId },
+      select: {
+        featureOverrides: true,
+        subscription: {
+          select: {
+            status: true, billingCycle: true, startDate: true,
+            currentPeriodEnd: true, trialEndsAt: true, graceEndsAt: true, canceledAt: true,
+            plan: { select: { features: true } },
+          },
+        },
+      },
+    });
+    subscription = resolveSubscription(tenant?.subscription);
+    features = computeFeatures(tenant?.subscription?.plan || null, tenant?.featureOverrides);
   }
 
-  res.json({ token: signToken(user), user: publicUser(user), subscription });
+  res.json({ token: signToken(user), user: publicUser(user), subscription, features, permissions });
 });
 
 export const me = asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  // req.subscription is the effective access state computed in the auth middleware
-  // (state/readOnly/inGrace/endsAt) — the client uses it to gate the UI.
-  res.json({ user: publicUser(user), subscription: req.subscription ?? null });
+  // req.subscription / req.features / req.permissions are computed in the auth
+  // middleware — the client uses them to gate the UI.
+  res.json({
+    user: publicUser(user),
+    subscription: req.subscription ?? null,
+    features: req.features ?? [],
+    permissions: req.permissions ?? [],
+  });
 });
 
 export const changePasswordSchema = z.object({

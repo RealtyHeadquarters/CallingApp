@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { downloadExport } from '../lib/download.js';
+import { useAuth } from '../auth/AuthContext.jsx';
 
 // Dropdown that exports the given endpoint in CSV / Excel / PDF (spec §46).
+// Hidden unless the tenant's plan includes the EXPORT feature.
 export default function ExportMenu({ path, params = {}, name = 'export' }) {
+  const { hasFeature } = useAuth();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const ref = useRef(null);
@@ -12,6 +15,9 @@ export default function ExportMenu({ path, params = {}, name = 'export' }) {
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, []);
+
+  // Hidden unless the tenant's plan includes the EXPORT feature (after hooks).
+  if (!hasFeature('EXPORT')) return null;
 
   async function run(format) {
     setBusy(true);

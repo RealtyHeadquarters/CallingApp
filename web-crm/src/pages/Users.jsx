@@ -7,9 +7,12 @@ import { ROLES } from '../lib/constants.js';
 import { titleCase } from '../lib/format.js';
 
 export default function Users() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = user?.role === 'ADMIN';
+  const canCreate = can('user.create');
+  const canEdit = can('user.edit');
+  const canDelete = can('user.delete');
+  const showActions = canEdit || canDelete;
   const [state, setState] = useState({ loading: true, rows: [], pagination: null });
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -66,7 +69,7 @@ export default function Users() {
           <option value="INACTIVE">Inactive (deleted)</option>
           <option value="">All</option>
         </select>
-        {isAdmin && <button className="btn primary" onClick={() => setShowCreate(true)}>+ New User</button>}
+        {canCreate && <button className="btn primary" onClick={() => setShowCreate(true)}>+ New User</button>}
       </div>
 
       {error && <div className="card card-pad error-text">{error}</div>}
@@ -76,7 +79,7 @@ export default function Users() {
           <div className="table-wrap">
             <table className="data">
               <thead>
-                <tr><th>Name</th><th>Email</th><th>Role</th><th>Team</th><th>Targets (calls/talk)</th><th>Presence</th><th>Status</th>{isAdmin && <th></th>}</tr>
+                <tr><th>Name</th><th>Email</th><th>Role</th><th>Team</th><th>Targets (calls/talk)</th><th>Presence</th><th>Status</th>{showActions && <th></th>}</tr>
               </thead>
               <tbody>
                 {state.rows.map((u) => (
@@ -92,14 +95,14 @@ export default function Users() {
                     </td>
                     <td><Badge>{titleCase(u.agentStatus)}</Badge></td>
                     <td><Badge status={u.status === 'ACTIVE' ? 'ANSWERED' : 'FAILED'}>{titleCase(u.status)}</Badge></td>
-                    {isAdmin && (
+                    {showActions && (
                       <td>
                         <div className="row-gap" style={{ gap: 6 }}>
-                          <button className="btn sm" onClick={() => setEditUser(u)}>Edit</button>
-                          {u.status === 'ACTIVE'
+                          {canEdit && <button className="btn sm" onClick={() => setEditUser(u)}>Edit</button>}
+                          {canEdit && (u.status === 'ACTIVE'
                             ? <button className="btn sm" disabled={u.id === user.id} title="Disable login, keep data" onClick={() => deactivate(u)}>Deactivate</button>
-                            : <button className="btn sm" style={{ color: 'var(--green)' }} onClick={() => reactivate(u)}>Reactivate</button>}
-                          <button className="btn sm" style={{ color: 'var(--red)' }} disabled={u.id === user.id} title={u.id === user.id ? "You can't delete yourself" : 'Delete permanently (removes all their data)'} onClick={() => deleteUser(u)}>Delete</button>
+                            : <button className="btn sm" style={{ color: 'var(--green)' }} onClick={() => reactivate(u)}>Reactivate</button>)}
+                          {canDelete && <button className="btn sm" style={{ color: 'var(--red)' }} disabled={u.id === user.id} title={u.id === user.id ? "You can't delete yourself" : 'Delete permanently (removes all their data)'} onClick={() => deleteUser(u)}>Delete</button>}
                         </div>
                       </td>
                     )}

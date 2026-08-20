@@ -3,6 +3,8 @@ import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
 import { runWithContext } from '../lib/tenantContext.js';
 import { resolveSubscription } from '../modules/subscriptions/subscription.service.js';
+import { computeFeatures, computePermissions } from '../services/entitlements.js';
+import { FEATURE_KEYS } from '../config/features.js';
 import { ApiError } from '../utils/apiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
@@ -40,10 +42,12 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
       tenant: {
         select: {
           status: true,
+          featureOverrides: true,
           subscription: {
             select: {
               status: true, billingCycle: true, startDate: true,
               currentPeriodEnd: true, trialEndsAt: true, graceEndsAt: true, canceledAt: true,
+              plan: { select: { features: true } },
             },
           },
         },
@@ -69,6 +73,11 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   // reads + billing); GRACE → full access with a banner flag on req.subscription.
   const sub = resolveSubscription(user.tenant?.subscription);
   req.subscription = sub;
+
+  // Effective entitlements for this request: plan features (± tenant overrides)
+  // and the role's granular permissions. Gated via requireFeature/requirePermission.
+  req.features = isSuperAdmin ? [...FEATURE_KEYS] : computeFeatures(user.tenant?.subscription?.plan || null, user.tenant?.featureOverrides);
+  req.permissions = computePermissions(user.role);
   if (!isSuperAdmin && sub.readOnly && !SAFE_METHODS.has(req.method)) {
     const path = req.originalUrl || req.url || '';
     const allowed = ALWAYS_ALLOWED.some((p) => path.startsWith(p));

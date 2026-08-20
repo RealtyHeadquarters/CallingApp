@@ -9,7 +9,7 @@ import { LEAD_STATUSES } from '../lib/constants.js';
 import { fmtDate, titleCase } from '../lib/format.js';
 
 export default function Leads() {
-  const { user } = useAuth();
+  const { user, can, hasFeature } = useAuth();
   const navigate = useNavigate();
   const canManage = user?.role === 'ADMIN' || user?.role === 'MANAGER';
 
@@ -46,13 +46,9 @@ export default function Leads() {
           {LEAD_STATUSES.map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
         </select>
         {canManage && <AgentFilter value={assignedUserId} onChange={(v) => { setPage(1); setAssignedUserId(v); }} allLabel="All agents" />}
-        {canManage && (
-          <>
-            <ExportMenu path="/exports/leads" params={{ leadStatus: leadStatus || undefined }} name="leads" />
-            <button className="btn" onClick={() => setShowImport(true)}>⬆ Import</button>
-            <button className="btn primary" onClick={() => setShowCreate(true)}>+ New Lead</button>
-          </>
-        )}
+        <ExportMenu path="/exports/leads" params={{ leadStatus: leadStatus || undefined }} name="leads" />
+        {can('lead.import') && hasFeature('BULK_IMPORT') && <button className="btn" onClick={() => setShowImport(true)}>⬆ Import</button>}
+        {can('lead.create') && <button className="btn primary" onClick={() => setShowCreate(true)}>+ New Lead</button>}
       </div>
 
       {error && <div className="card card-pad error-text">{error}</div>}
