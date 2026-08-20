@@ -4,6 +4,7 @@ import { ApiError } from '../../utils/apiError.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { recordAudit } from '../../utils/audit.js';
 import { parsePagination, paginated } from '../../utils/pagination.js';
+import { assertOwnedId } from '../../utils/tenantScope.js';
 import { generateLeadId } from '../../utils/ids.js';
 import { computeCallStats } from '../../utils/stats.js';
 import { notify } from '../../services/notifier.js';
@@ -140,6 +141,9 @@ export const createLeadSchema = z.object({
 
 export const createLead = asyncHandler(async (req, res) => {
   const body = req.body;
+  // Client-supplied FKs must belong to this tenant (blocks cross-tenant links/leaks).
+  const assignedUserId = await assertOwnedId('user', body.assignedUserId, 'agent');
+  const teamId = await assertOwnedId('team', body.teamId, 'team');
   const leadId = await generateLeadId();
   const client = await prisma.client.create({
     data: {
@@ -150,9 +154,9 @@ export const createLead = asyncHandler(async (req, res) => {
       email: body.email || null,
       company: body.company || null,
       source: body.source || null,
-      leadStatus: body.leadStatus || (body.assignedUserId ? 'ASSIGNED' : 'NEW'),
-      assignedUserId: body.assignedUserId || null,
-      teamId: body.teamId || null,
+      leadStatus: body.leadStatus || (assignedUserId ? 'ASSIGNED' : 'NEW'),
+      assignedUserId,
+      teamId,
     },
     select: clientSelect,
   });
@@ -167,7 +171,12 @@ export const updateLead = asyncHandler(async (req, res) => {
   const existing = await prisma.client.findFirst({ where: scopeForUser(req.user, { id: req.params.id }), select: { id: true } });
   if (!existing) throw ApiError.notFound('Lead not found');
 
-  const client = await prisma.client.update({ where: { id: req.params.id }, data: req.body, select: clientSelect });
+  // Re-validate any reassignment FKs against this tenant before writing them.
+  const data = { ...req.body };
+  if ('assignedUserId' in data) data.assignedUserId = await assertOwnedId('user', data.assignedUserId, 'agent');
+  if ('teamId' in data) data.teamId = await assertOwnedId('team', data.teamId, 'team');
+
+  const client = await prisma.client.update({ where: { id: req.params.id }, data, select: clientSelect });
   recordAudit(req, { action: 'UPDATE', entityType: 'Client', entityId: client.id, description: `Updated lead ${client.name}` });
   res.json({ client });
 });

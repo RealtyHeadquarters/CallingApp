@@ -3,6 +3,7 @@ import { prisma } from '../../lib/prisma.js';
 import { ApiError } from '../../utils/apiError.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { recordAudit } from '../../utils/audit.js';
+import { assertOwnedId } from '../../utils/tenantScope.js';
 import { parsePagination, paginated } from '../../utils/pagination.js';
 import { FOLLOWUP_TYPES, FOLLOWUP_STATUSES } from '../../utils/enums.js';
 
@@ -57,10 +58,13 @@ export const createFollowUp = asyncHandler(async (req, res) => {
   const client = await prisma.client.findFirst({ where: clientWhere, select: { id: true } });
   if (!client) throw ApiError.notFound('Lead not found');
 
+  // A linked call (optional) must belong to this tenant.
+  const callId = await assertOwnedId('call', b.callId, 'call');
+
   const followUp = await prisma.followUp.create({
     data: {
       clientId: b.clientId,
-      callId: b.callId || null,
+      callId,
       userId: req.user.id,
       followupAt,
       followupType: b.followupType,

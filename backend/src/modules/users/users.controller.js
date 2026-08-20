@@ -5,6 +5,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { recordAudit } from '../../utils/audit.js';
 import { parsePagination, paginated } from '../../utils/pagination.js';
 import { hashPassword, publicUser } from '../auth/auth.service.js';
+import { assertOwnedId } from '../../utils/tenantScope.js';
 import { ROLES, ACCOUNT_STATUSES, AGENT_STATUSES } from '../../utils/enums.js';
 
 const userSelect = {
@@ -68,6 +69,7 @@ export const createUserSchema = z.object({
 
 export const createUser = asyncHandler(async (req, res) => {
   const body = req.body;
+  const teamId = await assertOwnedId('team', body.teamId, 'team');
   const user = await prisma.user.create({
     data: {
       name: body.name,
@@ -75,7 +77,7 @@ export const createUser = asyncHandler(async (req, res) => {
       mobile: body.mobile,
       passwordHash: await hashPassword(body.password),
       role: body.role,
-      teamId: body.teamId || null,
+      teamId,
       dailyCallTarget: body.dailyCallTarget ?? null,
       dailyTalktimeTarget: body.dailyTalktimeTarget ?? null,
     },
@@ -103,6 +105,8 @@ export const updateUser = asyncHandler(async (req, res) => {
     body.passwordHash = await hashPassword(body.password);
     delete body.password;
   }
+  // A reassigned team must belong to this tenant.
+  if ('teamId' in body) body.teamId = await assertOwnedId('team', body.teamId, 'team');
   const user = await prisma.user.update({
     where: { id: req.params.id },
     data: body,

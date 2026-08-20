@@ -24,3 +24,9 @@ export const env = {
 };
 
 export const isProd = env.nodeEnv === 'production';
+
+// This repo is public: if it ever ran in production with the built-in dev secret,
+// anyone could forge a token for any user (incl. super admin). Refuse to boot.
+if (isProd && env.jwtSecret === 'dev-insecure-secret-change-me') {
+  throw new Error('JWT_SECRET must be set in production — refusing to start with the insecure default secret.');
+}

@@ -91,6 +91,19 @@ async function main() {
   const badOnboard = await call('POST', '/admin/tenants', { tok: sa, body: { company: { name: 'X' }, admin: { name: 'Y', email: 'bad', mobile: '1', password: 'short' } } });
   check('onboarding rejects invalid admin payload (400)', badOnboard.status === 400, `status ${badOnboard.status}`);
 
+  // ── Client-supplied FK injection: A cannot cross-link to / disclose B's rows ─
+  const aCallInject = await call('POST', '/calls/log', { tok: aTok, body: {
+    phoneNumber: '9990001111', clientId: bLeadId, callStatus: 'ANSWERED', direction: 'OUTGOING',
+  } });
+  const leakedClient = aCallInject.body?.call?.client;
+  check("A: call with B's clientId does NOT leak B's client (dropped to null)",
+    aCallInject.status === 201 && !leakedClient, `client=${JSON.stringify(leakedClient)}`);
+
+  const aLeadInject = await call('POST', '/leads', { tok: aTok, body: {
+    name: 'Injected', mobile: `INJ${Date.now()}`, assignedUserId: bAdminId,
+  } });
+  check("A: lead assignedUserId=B's user is rejected (400)", aLeadInject.status === 400, `status ${aLeadInject.status}`);
+
   // ── Suspension: suspend A → its admin is locked out (403) ───────────────────
   await call('PATCH', `/admin/tenants/${A.tenantId}/status`, { tok: sa, body: { status: 'SUSPENDED' } });
   const aAfter = await call('GET', '/dashboard/admin', { tok: aTok });

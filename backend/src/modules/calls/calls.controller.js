@@ -25,8 +25,13 @@ function scopeForUser(user, where = {}) {
 }
 
 // Try to associate a dialed number with a known lead in the agent's scope.
+// A caller-supplied clientId is NOT trusted: it must belong to this tenant
+// (findFirst is auto-scoped, so a foreign id resolves to null and is dropped).
 async function resolveClientId(user, phoneNumber, providedClientId) {
-  if (providedClientId) return providedClientId;
+  if (providedClientId) {
+    const owned = await prisma.client.findFirst({ where: { id: providedClientId }, select: { id: true } });
+    return owned?.id ?? null;
+  }
   const match = await prisma.client.findFirst({ where: { mobile: phoneNumber }, select: { id: true } });
   return match?.id ?? null;
 }
@@ -231,7 +236,8 @@ export const manualLogCall = asyncHandler(async (req, res) => {
   const answered = b.callStatus === 'ANSWERED';
 
   // Resolve or create the linked lead (so a manual call becomes a CRM activity).
-  let clientId = b.clientId || (await resolveClientId(agent, b.phoneNumber, null));
+  // resolveClientId validates a caller-supplied clientId against this tenant.
+  let clientId = await resolveClientId(agent, b.phoneNumber, b.clientId);
   if (customerName && !clientId) {
     const existing = await prisma.client.findFirst({ where: { mobile: b.phoneNumber }, select: { id: true } });
     if (existing) {

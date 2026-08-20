@@ -19,10 +19,11 @@ async function main() {
   });
 
   const stamp = Date.now();
+  const SECRET_NAME = `B Secret Lead ${stamp}`; // unique per run — never collides with real data
   // Create a lead INSIDE Tenant B's context — extension must tag it tenantId=B.
   const bLead = await runAsTenant(B.id, async () =>
     await prisma.client.create({
-      data: { leadId: `ITEST-${stamp}`, name: 'B Secret Lead', mobile: `IT${stamp}` },
+      data: { leadId: `ITEST-${stamp}`, name: SECRET_NAME, mobile: `IT${stamp}` },
       select: { id: true, tenantId: true, name: true },
     })
   );
@@ -36,7 +37,7 @@ async function main() {
     const byFirst = await prisma.client.findFirst({ where: { id: bLead.id } });
     check('A: findFirst(B.leadId) returns null', byFirst === null);
 
-    const inList = await prisma.client.findMany({ where: { name: 'B Secret Lead' } });
+    const inList = await prisma.client.findMany({ where: { name: SECRET_NAME } });
     check("A: findMany never lists B's lead", inList.length === 0, `found ${inList.length}`);
 
     let updateEscaped = false;
@@ -63,14 +64,14 @@ async function main() {
   // ── Confirm B still sees its own lead (not broken) ──────────────────────────
   await runAsTenant(B.id, async () => {
     const mine = await prisma.client.findUnique({ where: { id: bLead.id } });
-    check('B: can read its own lead', mine !== null && mine.name === 'B Secret Lead');
+    check('B: can read its own lead', mine !== null && mine.name === SECRET_NAME);
     const bCount = await prisma.client.count();
     check('B: count() sees only its 1 lead', bCount === 1, `B leads=${bCount}`);
   });
 
   // ── Verify the B lead was never mutated by A's attempts ─────────────────────
   const finalB = await runUnscoped(() => prisma.client.findUnique({ where: { id: bLead.id } }));
-  check('B lead name untouched by A', finalB?.name === 'B Secret Lead', `name=${finalB?.name}`);
+  check('B lead name untouched by A', finalB?.name === SECRET_NAME, `name=${finalB?.name}`);
 
   // ── Cleanup: delete Tenant B (cascade removes its rows) ─────────────────────
   await runUnscoped(() => prisma.tenant.delete({ where: { id: B.id } }));

@@ -4,6 +4,7 @@ import { prisma } from '../../lib/prisma.js';
 import { ApiError } from '../../utils/apiError.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { recordAudit } from '../../utils/audit.js';
+import { ownedIdOrNull } from '../../utils/tenantScope.js';
 import { generateLeadId } from '../../utils/ids.js';
 import { LEAD_STATUSES } from '../../utils/enums.js';
 
@@ -82,6 +83,8 @@ export const importLeads = asyncHandler(async (req, res) => {
 
     try {
       const leadId = await generateLeadId();
+      // Only honour an assignee that belongs to this tenant; drop foreign ids.
+      const assignedUserId = await ownedIdOrNull('user', row.assignedUserId);
       await prisma.client.create({
         data: {
           leadId,
@@ -90,8 +93,8 @@ export const importLeads = asyncHandler(async (req, res) => {
           email: row.email || null,
           company: row.company || null,
           source: row.source || 'Import',
-          leadStatus: row.leadStatus || (row.assignedUserId ? 'ASSIGNED' : 'NEW'),
-          assignedUserId: row.assignedUserId || null,
+          leadStatus: row.leadStatus || (assignedUserId ? 'ASSIGNED' : 'NEW'),
+          assignedUserId,
         },
       });
       results.imported++;
