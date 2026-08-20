@@ -6,6 +6,9 @@ import { recordAudit } from '../../utils/audit.js';
 import { parsePagination, paginated } from '../../utils/pagination.js';
 import { hashPassword } from '../auth/auth.service.js';
 import { createTenantWithAdmin } from './admin.service.js';
+import {
+  serializeSubscription, planPeriodFields, trialFields, extendFields,
+} from '../subscriptions/subscription.service.js';
 
 // NOTE: every handler here runs under the SUPER_ADMIN (bypass) context, so
 // Prisma queries are NOT auto-scoped — they intentionally span all tenants.
@@ -96,14 +99,14 @@ export const getTenant = asyncHandler(async (req, res) => {
   });
   if (!tenant) throw ApiError.notFound('Tenant not found');
 
-  const users = await prisma.user.findMany({
-    where: { tenantId: tenant.id },
-    orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
-    select: {
-      id: true, name: true, email: true, mobile: true, role: true,
-      status: true, createdAt: true,
-    },
-  });
+  const [users, sub] = await Promise.all([
+    prisma.user.findMany({
+      where: { tenantId: tenant.id },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, name: true, email: true, mobile: true, role: true, status: true, createdAt: true },
+    }),
+    prisma.subscription.findUnique({ where: { tenantId: tenant.id }, include: { plan: true } }),
+  ]);
 
   res.json({
     tenant: {
@@ -115,7 +118,110 @@ export const getTenant = asyncHandler(async (req, res) => {
       _count: undefined,
     },
     users,
+    subscription: serializeSubscription(sub),
   });
+});
+
+// ── Plan catalog (global; not tenant-scoped) ────────────────────────────────
+export const listPlans = asyncHandler(async (_req, res) => {
+  const plans = await prisma.subscriptionPlan.findMany({ orderBy: { sortOrder: 'asc' } });
+  res.json({ data: plans });
+});
+
+const planBody = {
+  name: z.string().min(2),
+  code: z.enum(['STARTER', 'BUSINESS', 'ENTERPRISE', 'CUSTOM']).default('CUSTOM'),
+  priceMonthly: z.number().int().min(0).default(0),
+  priceYearly: z.number().int().min(0).default(0),
+  userLimit: z.number().int().positive().nullable().optional(),
+  callLimit: z.number().int().positive().nullable().optional(),
+  storageLimitMb: z.number().int().positive().nullable().optional(),
+  isActive: z.boolean().optional(),
+  sortOrder: z.number().int().optional(),
+};
+export const createPlanSchema = z.object(planBody);
+export const updatePlanSchema = z.object(planBody).partial();
+
+export const createPlan = asyncHandler(async (req, res) => {
+  const plan = await prisma.subscriptionPlan.create({ data: req.body });
+  recordAudit(req, { action: 'PLAN_CREATE', entityType: 'SubscriptionPlan', entityId: plan.id, description: `Created plan ${plan.name}` });
+  res.status(201).json({ plan });
+});
+
+export const updatePlan = asyncHandler(async (req, res) => {
+  const existing = await prisma.subscriptionPlan.findUnique({ where: { id: req.params.id }, select: { id: true } });
+  if (!existing) throw ApiError.notFound('Plan not found');
+  const plan = await prisma.subscriptionPlan.update({ where: { id: req.params.id }, data: req.body });
+  recordAudit(req, { action: 'PLAN_UPDATE', entityType: 'SubscriptionPlan', entityId: plan.id, description: `Updated plan ${plan.name}` });
+  res.json({ plan });
+});
+
+// ── Subscription management for a tenant ────────────────────────────────────
+async function upsertSubscription(tenantId, planId, fields) {
+  return prisma.subscription.upsert({
+    where: { tenantId },
+    create: { tenantId, planId: planId ?? null, ...fields },
+    update: { planId: planId ?? undefined, ...fields },
+    include: { plan: true },
+  });
+}
+
+async function requireTenant(id) {
+  const t = await prisma.tenant.findUnique({ where: { id }, select: { id: true, name: true } });
+  if (!t) throw ApiError.notFound('Tenant not found');
+  return t;
+}
+
+// Assign / renew a PAID plan.
+export const assignPlanSchema = z.object({
+  planId: z.string().min(1),
+  billingCycle: z.enum(['MONTHLY', 'YEARLY']).default('MONTHLY'),
+});
+export const assignPlan = asyncHandler(async (req, res) => {
+  const tenant = await requireTenant(req.params.id);
+  const plan = await prisma.subscriptionPlan.findUnique({ where: { id: req.body.planId } });
+  if (!plan) throw ApiError.badRequest('Plan not found');
+  const sub = await upsertSubscription(tenant.id, plan.id, planPeriodFields(plan, req.body.billingCycle));
+  recordAudit(req, { action: 'SUBSCRIPTION_ASSIGN', entityType: 'Tenant', entityId: tenant.id, description: `${tenant.name} → ${plan.name} (${req.body.billingCycle})` });
+  res.json({ subscription: serializeSubscription(sub) });
+});
+
+// Start / restart a trial.
+export const startTrialSchema = z.object({
+  planId: z.string().optional(),
+  trialDays: z.number().int().positive().max(365).default(14),
+});
+export const startTrial = asyncHandler(async (req, res) => {
+  const tenant = await requireTenant(req.params.id);
+  const plan = req.body.planId ? await prisma.subscriptionPlan.findUnique({ where: { id: req.body.planId } }) : null;
+  const sub = await upsertSubscription(tenant.id, plan?.id ?? null, trialFields(plan, req.body.trialDays));
+  recordAudit(req, { action: 'SUBSCRIPTION_TRIAL', entityType: 'Tenant', entityId: tenant.id, description: `${tenant.name} → ${req.body.trialDays}-day trial` });
+  res.json({ subscription: serializeSubscription(sub) });
+});
+
+// Extend the current period (renew / grant extra time).
+export const extendSchema = z.object({ days: z.number().int().positive().max(3650) });
+export const extendSubscription = asyncHandler(async (req, res) => {
+  const tenant = await requireTenant(req.params.id);
+  const current = await prisma.subscription.findUnique({ where: { tenantId: tenant.id } });
+  if (!current) throw ApiError.badRequest('No subscription to extend — assign a plan first');
+  const sub = await upsertSubscription(tenant.id, current.planId, extendFields(current, req.body.days));
+  recordAudit(req, { action: 'SUBSCRIPTION_EXTEND', entityType: 'Tenant', entityId: tenant.id, description: `${tenant.name} extended ${req.body.days}d` });
+  res.json({ subscription: serializeSubscription(sub) });
+});
+
+// Cancel (data preserved; becomes read-only).
+export const cancelSubscription = asyncHandler(async (req, res) => {
+  const tenant = await requireTenant(req.params.id);
+  const current = await prisma.subscription.findUnique({ where: { tenantId: tenant.id } });
+  if (!current) throw ApiError.badRequest('No subscription to cancel');
+  const sub = await prisma.subscription.update({
+    where: { tenantId: tenant.id },
+    data: { status: 'CANCELLED', canceledAt: new Date() },
+    include: { plan: true },
+  });
+  recordAudit(req, { action: 'SUBSCRIPTION_CANCEL', entityType: 'Tenant', entityId: tenant.id, description: `${tenant.name} subscription cancelled` });
+  res.json({ subscription: serializeSubscription(sub) });
 });
 
 // ── Onboard a new client (tenant + first admin) ─────────────────────────────
@@ -133,17 +239,35 @@ export const createTenantSchema = z.object({
     mobile: z.string().min(6),
     password: z.string().min(8, 'Password must be at least 8 characters'),
   }),
+  // Optional starting subscription. Default: 14-day trial (no plan).
+  subscription: z.object({
+    planId: z.string().optional(),
+    billingCycle: z.enum(['MONTHLY', 'YEARLY']).default('MONTHLY'),
+    trialDays: z.number().int().positive().max(365).optional(),
+  }).optional(),
 });
 
 export const createTenant = asyncHandler(async (req, res) => {
   const { tenant, admin } = await createTenantWithAdmin(req.body);
+
+  // Give the new tenant a starting subscription so lifecycle/limits apply from day 1.
+  const s = req.body.subscription || {};
+  const plan = s.planId ? await prisma.subscriptionPlan.findUnique({ where: { id: s.planId } }) : null;
+  const fields = plan && !s.trialDays
+    ? planPeriodFields(plan, s.billingCycle || 'MONTHLY')
+    : trialFields(plan, s.trialDays || 14);
+  const subscription = await prisma.subscription.create({
+    data: { tenantId: tenant.id, planId: plan?.id ?? null, ...fields },
+    include: { plan: true },
+  });
+
   recordAudit(req, {
     action: 'TENANT_CREATE',
     entityType: 'Tenant',
     entityId: tenant.id,
-    description: `Onboarded ${tenant.name} (admin ${admin.email})`,
+    description: `Onboarded ${tenant.name} (admin ${admin.email}, ${subscription.status})`,
   });
-  res.status(201).json({ tenant, admin });
+  res.status(201).json({ tenant, admin, subscription: serializeSubscription(subscription) });
 });
 
 // ── Update tenant profile / branding ────────────────────────────────────────

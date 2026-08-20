@@ -96,20 +96,29 @@ export default function Tenants() {
 // Onboard a client: company info + first admin → credentials to hand over.
 function OnboardModal({ onClose, onSaved }) {
   const [form, setForm] = useState({
-    companyName: '', trial: false,
+    companyName: '',
     adminName: '', adminEmail: '', adminMobile: '', adminPassword: '',
+    startMode: 'trial', trialDays: 14, billingCycle: 'MONTHLY', // startMode = 'trial' | planId
   });
+  const [plans, setPlans] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null); // { email, password }
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
+  useEffect(() => { api.get('/admin/plans').then((r) => setPlans(r.data.data)).catch(() => {}); }, []);
+
   async function save() {
     setBusy(true); setError('');
     try {
+      const isTrial = form.startMode === 'trial';
+      const subscription = isTrial
+        ? { trialDays: Number(form.trialDays) || 14 }
+        : { planId: form.startMode, billingCycle: form.billingCycle };
       await api.post('/admin/tenants', {
-        company: { name: form.companyName, status: form.trial ? 'TRIAL' : 'ACTIVE' },
+        company: { name: form.companyName, status: isTrial ? 'TRIAL' : 'ACTIVE' },
         admin: { name: form.adminName, email: form.adminEmail, mobile: form.adminMobile, password: form.adminPassword },
+        subscription,
       });
       setDone({ email: form.adminEmail, password: form.adminPassword });
     } catch (err) { setError(apiError(err)); } finally { setBusy(false); }
@@ -142,11 +151,22 @@ function OnboardModal({ onClose, onSaved }) {
       {error && <div className="error-text">{error}</div>}
       <div className="section-head" style={{ marginTop: 0 }}><h2 style={{ fontSize: 14 }}>Company</h2></div>
       <div className="field"><label>Company name *</label><input className="input" value={form.companyName} onChange={set('companyName')} placeholder="Acme Realty Pvt Ltd" /></div>
-      <div className="field">
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-          <input type="checkbox" checked={form.trial} onChange={(e) => setForm({ ...form, trial: e.target.checked })} />
-          Start as trial
-        </label>
+      <div className="row-gap" style={{ gap: 12 }}>
+        <div className="field" style={{ flex: 2 }}>
+          <label>Start with</label>
+          <select className="select" value={form.startMode} onChange={set('startMode')}>
+            <option value="trial">Free trial</option>
+            {plans.map((p) => <option key={p.id} value={p.id}>{p.name} plan (active)</option>)}
+          </select>
+        </div>
+        {form.startMode === 'trial' ? (
+          <div className="field" style={{ flex: 1 }}><label>Trial days</label><input className="input" type="number" min="1" value={form.trialDays} onChange={set('trialDays')} /></div>
+        ) : (
+          <div className="field" style={{ flex: 1 }}>
+            <label>Billing</label>
+            <select className="select" value={form.billingCycle} onChange={set('billingCycle')}><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select>
+          </div>
+        )}
       </div>
 
       <div className="section-head"><h2 style={{ fontSize: 14 }}>Client Admin (first login)</h2></div>

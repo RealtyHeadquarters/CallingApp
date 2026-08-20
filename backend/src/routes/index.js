@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authRoutes from '../modules/auth/auth.routes.js';
 import adminRoutes from '../modules/admin/admin.routes.js';
+import subscriptionRoutes from '../modules/subscriptions/subscriptions.routes.js';
 import userRoutes from '../modules/users/users.routes.js';
 import teamRoutes from '../modules/teams/teams.routes.js';
 import leadRoutes from '../modules/leads/leads.routes.js';
@@ -16,6 +17,7 @@ const router = Router();
 
 router.use('/auth', authRoutes);
 router.use('/admin', adminRoutes);
+router.use('/subscription', subscriptionRoutes);
 router.use('/users', userRoutes);
 router.use('/teams', teamRoutes);
 router.use('/leads', leadRoutes);

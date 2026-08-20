@@ -6,6 +6,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { recordAudit } from '../../utils/audit.js';
 import { isProd } from '../../config/env.js';
 import { hashPassword, verifyPassword, signToken, publicUser } from './auth.service.js';
+import { resolveSubscription } from '../subscriptions/subscription.service.js';
 
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
@@ -38,12 +39,21 @@ export const login = asyncHandler(async (req, res) => {
     description: `${user.name} logged in`,
   });
 
-  res.json({ token: signToken(user), user: publicUser(user) });
+  // Include the effective subscription state so the client can gate immediately.
+  let subscription = null;
+  if (user.tenantId) {
+    const sub = await prisma.subscription.findUnique({ where: { tenantId: user.tenantId } });
+    subscription = resolveSubscription(sub);
+  }
+
+  res.json({ token: signToken(user), user: publicUser(user), subscription });
 });
 
 export const me = asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  res.json({ user: publicUser(user) });
+  // req.subscription is the effective access state computed in the auth middleware
+  // (state/readOnly/inGrace/endsAt) — the client uses it to gate the UI.
+  res.json({ user: publicUser(user), subscription: req.subscription ?? null });
 });
 
 export const changePasswordSchema = z.object({

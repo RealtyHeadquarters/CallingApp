@@ -16,16 +16,22 @@ import Teams from './pages/Teams.jsx';
 import PlatformDashboard from './pages/superadmin/PlatformDashboard.jsx';
 import Tenants from './pages/superadmin/Tenants.jsx';
 import TenantDetail from './pages/superadmin/TenantDetail.jsx';
+import Plans from './pages/superadmin/Plans.jsx';
+import Subscription from './pages/Subscription.jsx';
+import { ExpiredScreen } from './components/SubscriptionGate.jsx';
 
 // `superAdmin` gates the platform-owner area. The two worlds never mix:
 // a super admin is redirected into /admin; a tenant user is redirected out of it.
-function Protected({ children, superAdmin = false }) {
-  const { user, loading } = useAuth();
+// `allowExpired` lets a page stay reachable (billing / logout) when read-only.
+function Protected({ children, superAdmin = false, allowExpired = false }) {
+  const { user, subscription, loading } = useAuth();
   if (loading) return <Loading label="Starting ProCallingApp…" />;
   if (!user) return <Navigate to="/login" replace />;
   const isSA = user.role === 'SUPER_ADMIN';
   if (isSA && !superAdmin) return <Navigate to="/admin" replace />;
   if (!isSA && superAdmin) return <Navigate to="/" replace />;
+  // Read-only (expired/cancelled) tenants get the block screen instead of the app.
+  if (!isSA && subscription?.readOnly && !allowExpired) return <ExpiredScreen />;
   return superAdmin ? <SuperAdminLayout>{children}</SuperAdminLayout> : <Layout>{children}</Layout>;
 }
 
@@ -44,11 +50,14 @@ export default function App() {
       <Route path="/users" element={<Protected><Users /></Protected>} />
       <Route path="/users/:id" element={<Protected><UserDetail /></Protected>} />
       <Route path="/teams" element={<Protected><Teams /></Protected>} />
+      {/* Reachable even when read-only, so the client can review billing */}
+      <Route path="/subscription" element={<Protected allowExpired><Subscription /></Protected>} />
 
       {/* Super Admin console */}
       <Route path="/admin" element={<Protected superAdmin><PlatformDashboard /></Protected>} />
       <Route path="/admin/tenants" element={<Protected superAdmin><Tenants /></Protected>} />
       <Route path="/admin/tenants/:id" element={<Protected superAdmin><TenantDetail /></Protected>} />
+      <Route path="/admin/plans" element={<Protected superAdmin><Plans /></Protected>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

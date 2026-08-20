@@ -7,9 +7,10 @@ import BrandMark from './BrandMark.jsx';
 const NAV = [
   { to: '/admin', label: 'Platform', ico: '▧', end: true },
   { to: '/admin/tenants', label: 'Clients', ico: '🏢' },
+  { to: '/admin/plans', label: 'Plans', ico: '📦' },
 ];
 
-const TITLES = { '/admin': 'Platform Overview', '/admin/tenants': 'Client Organizations' };
+const TITLES = { '/admin': 'Platform Overview', '/admin/tenants': 'Client Organizations', '/admin/plans': 'Subscription Plans' };
 
 export default function SuperAdminLayout({ children }) {
   const { user, logout } = useAuth();

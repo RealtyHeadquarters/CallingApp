@@ -4,7 +4,7 @@ import { tenantStore } from './tenantContext.js';
 
 // Models that carry a tenantId and must be isolated per tenant.
 // (Counter and PasswordResetToken are platform-level and intentionally excluded.)
-const TENANT_MODELS = new Set(['User', 'Team', 'Client', 'Call', 'FollowUp', 'Notification', 'AuditLog']);
+const TENANT_MODELS = new Set(['User', 'Team', 'Client', 'Call', 'FollowUp', 'Notification', 'AuditLog', 'Subscription']);
 
 // Operations whose `where` we scope with tenantId. Prisma 5 "extendedWhereUnique"
 // lets us add tenantId even to findUnique/update/delete (which take a unique id),
