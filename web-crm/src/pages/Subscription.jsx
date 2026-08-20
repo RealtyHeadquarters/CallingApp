@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api, { apiError } from '../api/client.js';
 import { Loading } from '../components/ui.jsx';
+import UsageBar from '../components/UsageBar.jsx';
 import { fmtDate } from '../lib/format.js';
 
 const STATE = {
@@ -16,12 +17,13 @@ const limit = (n) => (n == null ? 'Unlimited' : n.toLocaleString('en-IN'));
 
 export default function Subscription() {
   const [sub, setSub] = useState(undefined);
+  const [usage, setUsage] = useState(null);
   const [plans, setPlans] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     Promise.all([api.get('/subscription'), api.get('/subscription/plans')])
-      .then(([s, p]) => { setSub(s.data.subscription); setPlans(p.data.data); })
+      .then(([s, p]) => { setSub(s.data.subscription); setUsage(s.data.usage || null); setPlans(p.data.data); })
       .catch((e) => setError(apiError(e)));
   }, []);
 
@@ -59,6 +61,20 @@ export default function Subscription() {
           </div>
         )}
       </div>
+
+      {usage && (
+        <div className="card card-pad" style={{ marginBottom: 16 }}>
+          <div className="section-head" style={{ marginTop: 0 }}><h2>Usage this period</h2></div>
+          <UsageBar label="Users" used={usage.users.used} limit={usage.users.limit} percent={usage.users.percent} />
+          <UsageBar label="Calls" used={usage.calls.used} limit={usage.calls.limit} percent={usage.calls.percent} />
+          <UsageBar label="Leads" used={usage.leads.used} limit={usage.leads.limit} percent={usage.leads.percent} />
+          {((usage.users.percent ?? 0) >= 80 || (usage.calls.percent ?? 0) >= 80) && (
+            <div className="grace-banner" style={{ marginBottom: 0 }}>
+              You're approaching your plan limits. Contact your account manager to upgrade before you hit them.
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="section-head"><h2>Available Plans</h2></div>
       <div className="kgrid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>

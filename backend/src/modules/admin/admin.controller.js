@@ -11,6 +11,7 @@ import {
 } from '../subscriptions/subscription.service.js';
 import { FEATURE_KEYS, FEATURE_LABELS } from '../../config/features.js';
 import { computeFeatures } from '../../services/entitlements.js';
+import { getUsage } from '../../services/usage.js';
 
 // Feature catalog for the console (checkbox lists).
 export const listFeatures = (_req, res) => {
@@ -115,6 +116,9 @@ export const getTenant = asyncHandler(async (req, res) => {
     prisma.subscription.findUnique({ where: { tenantId: tenant.id }, include: { plan: true } }),
   ]);
 
+  const limits = { users: sub?.userLimit ?? null, calls: sub?.callLimit ?? null, storageMb: sub?.storageLimitMb ?? null };
+  const usage = await getUsage(tenant.id, sub, limits);
+
   res.json({
     tenant: {
       ...tenant,
@@ -126,6 +130,7 @@ export const getTenant = asyncHandler(async (req, res) => {
     },
     users,
     subscription: serializeSubscription(sub),
+    usage,
     features: computeFeatures(sub?.plan || null, tenant.featureOverrides),
     featureOverrides: tenant.featureOverrides || {},
   });
