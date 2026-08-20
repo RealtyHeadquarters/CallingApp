@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api, { apiError } from '../../api/client.js';
 import { Loading, Modal } from '../../components/ui.jsx';
 import TenantStatusBadge from '../../components/TenantStatusBadge.jsx';
+import UsageBar from '../../components/UsageBar.jsx';
 import { fmtDate, titleCase } from '../../lib/format.js';
 
 const money = (paise) => '₹' + Math.round((paise || 0) / 100).toLocaleString('en-IN');
@@ -96,6 +97,18 @@ export default function TenantDetail() {
           );
         })() : <div className="muted">No subscription. Click Manage to assign a plan or trial.</div>}
       </div>
+
+      {/* Usage */}
+      {data.usage && (
+        <>
+          <div className="section-head" style={{ marginTop: 22 }}><h2>Usage this period</h2></div>
+          <div className="card card-pad">
+            <UsageBar label="Users" used={data.usage.users.used} limit={data.usage.users.limit} percent={data.usage.users.percent} />
+            <UsageBar label="Calls" used={data.usage.calls.used} limit={data.usage.calls.limit} percent={data.usage.calls.percent} />
+            <UsageBar label="Leads" used={data.usage.leads.used} limit={data.usage.leads.limit} percent={data.usage.leads.percent} />
+          </div>
+        </>
+      )}
 
       {/* Features */}
       <div className="section-head" style={{ marginTop: 22 }}>

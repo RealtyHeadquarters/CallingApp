@@ -47,6 +47,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
             select: {
               status: true, billingCycle: true, startDate: true,
               currentPeriodEnd: true, trialEndsAt: true, graceEndsAt: true, canceledAt: true,
+              userLimit: true, callLimit: true, storageLimitMb: true,
               plan: { select: { features: true } },
             },
           },
@@ -71,8 +72,11 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
 
   // Subscription lifecycle: EXPIRED/CANCELLED → read-only (block writes, allow
   // reads + billing); GRACE → full access with a banner flag on req.subscription.
-  const sub = resolveSubscription(user.tenant?.subscription);
+  const subRow = user.tenant?.subscription || null;
+  const sub = resolveSubscription(subRow);
   req.subscription = sub;
+  req.subscriptionRow = subRow; // raw row (dates/cycle) for usage period math
+  req.limits = { users: subRow?.userLimit ?? null, calls: subRow?.callLimit ?? null, storageMb: subRow?.storageLimitMb ?? null };
 
   // Effective entitlements for this request: plan features (± tenant overrides)
   // and the role's granular permissions. Gated via requireFeature/requirePermission.

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/entitlement.js';
+import { enforceLimit } from '../../middleware/enforceLimit.js';
 import { validate } from '../../middleware/validate.js';
 import {
   listUsers, listUsersQuery, getUser,
@@ -21,7 +22,7 @@ router.patch('/me/status', validate(agentStatusSchema), updateMyStatus);
 // Admin/Manager management
 router.get('/', requirePermission('user.view'), validate(listUsersQuery, 'query'), listUsers);
 router.get('/:id', requirePermission('user.view'), getUser);
-router.post('/', requirePermission('user.create'), validate(createUserSchema), createUser);
+router.post('/', requirePermission('user.create'), enforceLimit('USERS'), validate(createUserSchema), createUser);
 router.patch('/:id', requirePermission('user.edit'), validate(updateUserSchema), updateUser);
 router.delete('/:id/permanent', requirePermission('user.delete'), deleteUserPermanent);
 router.delete('/:id', requirePermission('user.delete'), deactivateUser);
