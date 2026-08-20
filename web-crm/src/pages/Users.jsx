@@ -13,6 +13,7 @@ export default function Users() {
   const [state, setState] = useState({ loading: true, rows: [], pagination: null });
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ACTIVE');
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser] = useState(null);
   const [teams, setTeams] = useState([]);
@@ -21,18 +22,34 @@ export default function Users() {
   const load = useCallback(() => {
     setState((s) => ({ ...s, loading: true }));
     api
-      .get('/users', { params: { page, pageSize: 15, search: search || undefined } })
+      .get('/users', { params: { page, pageSize: 15, search: search || undefined, status: statusFilter || undefined } })
       .then((res) => setState({ loading: false, rows: res.data.data, pagination: res.data.pagination }))
       .catch((err) => { setError(apiError(err)); setState((s) => ({ ...s, loading: false })); });
-  }, [page, search]);
+  }, [page, search, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api.get('/teams').then((r) => setTeams(r.data.data)).catch(() => {}); }, []);
+
+  async function deactivate(u) {
+    if (!window.confirm(`Delete "${u.name}"? They will be deactivated and can no longer log in. Their call history stays intact for reports.`)) return;
+    try { await api.delete(`/users/${u.id}`); load(); }
+    catch (err) { setError(apiError(err)); }
+  }
+
+  async function reactivate(u) {
+    try { await api.patch(`/users/${u.id}`, { status: 'ACTIVE' }); load(); }
+    catch (err) { setError(apiError(err)); }
+  }
 
   return (
     <>
       <div className="toolbar">
         <input className="input grow" placeholder="Search users…" value={search} onChange={(e) => { setPage(1); setSearch(e.target.value); }} />
+        <select className="select" value={statusFilter} onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}>
+          <option value="ACTIVE">Active</option>
+          <option value="INACTIVE">Inactive (deleted)</option>
+          <option value="">All</option>
+        </select>
         {isAdmin && <button className="btn primary" onClick={() => setShowCreate(true)}>+ New User</button>}
       </div>
 
@@ -59,7 +76,16 @@ export default function Users() {
                     </td>
                     <td><Badge>{titleCase(u.agentStatus)}</Badge></td>
                     <td><Badge status={u.status === 'ACTIVE' ? 'ANSWERED' : 'FAILED'}>{titleCase(u.status)}</Badge></td>
-                    {isAdmin && <td><button className="btn sm" onClick={() => setEditUser(u)}>Edit</button></td>}
+                    {isAdmin && (
+                      <td>
+                        <div className="row-gap" style={{ gap: 6 }}>
+                          <button className="btn sm" onClick={() => setEditUser(u)}>Edit</button>
+                          {u.status === 'ACTIVE'
+                            ? <button className="btn sm" style={{ color: 'var(--red)' }} disabled={u.id === user.id} title={u.id === user.id ? "You can't delete yourself" : 'Deactivate user'} onClick={() => deactivate(u)}>Delete</button>
+                            : <button className="btn sm" style={{ color: 'var(--green)' }} onClick={() => reactivate(u)}>Reactivate</button>}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
