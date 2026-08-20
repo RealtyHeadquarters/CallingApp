@@ -4,13 +4,13 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import api, { apiError } from '../api/client.js';
-import { Loading } from '../components/ui.jsx';
+import { Loading, CountUp } from '../components/ui.jsx';
 import ExportMenu from '../components/ExportMenu.jsx';
 import { DATE_PRESETS } from '../lib/constants.js';
 import { titleCase } from '../lib/format.js';
 
-// Categorical palette — brand-derived, distinguishable.
-const COLORS = ['#4f56c4', '#0ea5a4', '#d97706', '#2563eb', '#16a34a', '#dc2626', '#8b5cf6', '#db2777'];
+// Categorical palette — blue/orange forward, distinguishable.
+const COLORS = ['#2f6bff', '#f97316', '#6b9bff', '#f59e0b', '#10b981', '#f43f5e', '#7c3aed', '#14b8a6'];
 
 export default function Analytics() {
   const [datePreset, setDatePreset] = useState('last30');
@@ -31,16 +31,37 @@ export default function Analytics() {
 
   if (error) return <div className="card card-pad error-text">{error}</div>;
 
+  // Totals for the selected period (from the daily volume series).
+  const totals = data
+    ? data.volumeSeries.reduce(
+        (a, d) => ({ calls: a.calls + d.totalCalls, ans: a.ans + d.answeredCalls, talk: a.talk + (d.talkTimeSeconds || 0) }),
+        { calls: 0, ans: 0, talk: 0 }
+      )
+    : null;
+  const fmtHms = (s) => [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((n) => String(n).padStart(2, '0')).join(':');
+  const answerRate = totals && totals.calls ? Math.round((totals.ans / totals.calls) * 1000) / 10 : 0;
+
   return (
     <>
-      <div className="toolbar">
-        <select className="select" value={datePreset} onChange={(e) => setDatePreset(e.target.value)}>
-          {DATE_PRESETS.filter((p) => p.value).map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-        </select>
+      {/* Period pill filter */}
+      <div className="pill-tabs">
+        {DATE_PRESETS.filter((p) => p.value).map((p) => (
+          <button key={p.value} className={`pill ${datePreset === p.value ? 'active' : ''}`} onClick={() => setDatePreset(p.value)}>
+            {p.label}
+          </button>
+        ))}
       </div>
 
       {!data ? <Loading /> : (
         <>
+          {/* Period summary */}
+          <div className="kgrid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+            <div className="kcard"><div className="tile">📞</div><div className="kbody"><div className="klabel">Total Calls</div><div className="kvalue"><CountUp value={totals.calls} /></div></div></div>
+            <div className="kcard"><div className="tile">✅</div><div className="kbody"><div className="klabel">Answered</div><div className="kvalue"><CountUp value={totals.ans} /></div></div></div>
+            <div className="kcard"><div className="tile">📈</div><div className="kbody"><div className="klabel">Answer Rate</div><div className="kvalue grad">{answerRate}%</div></div></div>
+            <div className="kcard orange"><div className="tile">⏱️</div><div className="kbody"><div className="klabel">Talk Time</div><div className="kvalue">{fmtHms(totals.talk)}</div></div></div>
+          </div>
+
           <div className="grid-2">
             <div className="card card-pad">
               <div className="section-head"><h2>Call Volume</h2></div>
@@ -51,8 +72,8 @@ export default function Analytics() {
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="totalCalls" name="Total" fill="#4f56c4" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="answeredCalls" name="Answered" fill="#0ea5a4" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="totalCalls" name="Total" fill="#2f6bff" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="answeredCalls" name="Answered" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -65,7 +86,7 @@ export default function Analytics() {
                   <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={(d) => d.slice(5)} />
                   <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
                   <Tooltip />
-                  <Line type="monotone" dataKey="answerRate" name="Answer Rate" stroke="#0ea5a4" strokeWidth={2.5} dot={false} />
+                  <Line type="monotone" dataKey="answerRate" name="Answer Rate" stroke="#10b981" strokeWidth={2.5} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -78,7 +99,7 @@ export default function Analytics() {
                   <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
                   <YAxis type="category" dataKey="disposition" tick={{ fontSize: 10 }} tickFormatter={titleCase} width={120} />
                   <Tooltip />
-                  <Bar dataKey="count" fill="#4f56c4" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="count" fill="#2f6bff" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -122,8 +143,8 @@ export default function Analytics() {
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="incoming" name="Incoming" stackId="a" fill="#10c5c0" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="outgoing" name="Outgoing" stackId="a" fill="#5b60f0" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="incoming" name="Incoming" stackId="a" fill="#f97316" radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="outgoing" name="Outgoing" stackId="a" fill="#2f6bff" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -136,7 +157,7 @@ export default function Analytics() {
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} tickFormatter={(n) => (n || '').split(' ')[0]} interval={0} angle={-20} textAnchor="end" height={50} />
                   <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} />
                   <Tooltip formatter={(v) => [`${v}%`, 'Answer Rate']} />
-                  <Bar dataKey="answerRate" name="Answer Rate" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="answerRate" name="Answer Rate" fill="#f97316" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -150,7 +171,7 @@ export default function Analytics() {
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="answeredCalls" name="Answered" stackId="b" fill="#16a34a" />
+                  <Bar dataKey="answeredCalls" name="Answered" stackId="b" fill="#10b981" />
                   <Bar dataKey="unansweredCalls" name="Unanswered" stackId="b" fill="#f43f5e" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -164,7 +185,7 @@ export default function Analytics() {
                   <XAxis dataKey="name" tick={{ fontSize: 10 }} tickFormatter={(n) => (n || '').split(' ')[0]} interval={0} angle={-20} textAnchor="end" height={50} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip formatter={(v) => [`${v} min`, 'Talk Time']} />
-                  <Bar dataKey="talkMin" name="Talk Time (min)" fill="#0ea5a4" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="talkMin" name="Talk Time (min)" fill="#10b981" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

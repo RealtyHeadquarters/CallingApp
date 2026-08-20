@@ -482,3 +482,26 @@ table.data td { border-bottom: 1px solid rgba(255,255,255,0.5); }
 
 /* Skeleton over glass */
 .skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.4) 25%, rgba(255,255,255,0.75) 37%, rgba(255,255,255,0.4) 63%); background-size: 200% 100%; }
+
+/* ── Pill tabs (segmented filter) ── */
+.pill-tabs {
+  display: inline-flex; gap: 4px; padding: 5px; margin-bottom: 20px; flex-wrap: wrap;
+  background: rgba(255,255,255,0.5); backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.6); border-radius: 14px; box-shadow: var(--shadow-sm);
+}
+.pill {
+  border: none; background: transparent; color: var(--text-2);
+  padding: 8px 16px; border-radius: 10px; font-weight: 650; font-size: 13px;
+  transition: all 0.2s var(--ease);
+}
+.pill:hover { color: var(--text); background: rgba(255,255,255,0.6); }
+.pill.active { background: var(--grad-brand-soft); color: #fff; box-shadow: var(--glow); }
+
+/* Recharts polish on glass */
+.recharts-cartesian-grid line { stroke: rgba(23,58,122,0.08) !important; }
+.recharts-default-tooltip {
+  background: rgba(255,255,255,0.9) !important; backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.7) !important; border-radius: 12px !important;
+  box-shadow: var(--shadow) !important;
+}
+.recharts-text { fill: var(--text-3); }
