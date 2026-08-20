@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma.js';
+import { runAsTenant } from '../lib/tenantContext.js';
 import { notify } from './notifier.js';
 import { computeCallStats, formatDuration } from '../utils/stats.js';
 
@@ -17,12 +18,13 @@ export async function runReminderTick(now = new Date()) {
   // 1) Upcoming follow-ups entering the reminder window (not yet reminded).
   const dueSoon = await prisma.followUp.findMany({
     where: { status: 'PENDING', reminderSent: false, followupAt: { gt: now, lte: soon } },
-    select: { id: true, userId: true, followupAt: true, client: { select: { name: true } } },
+    select: { id: true, userId: true, tenantId: true, followupAt: true, client: { select: { name: true } } },
     take: 500,
   });
   for (const f of dueSoon) {
     await notify({
       userId: f.userId,
+      tenantId: f.tenantId,
       type: 'FOLLOWUP_REMINDER',
       title: `Follow-up soon: ${f.client?.name ?? 'client'}`,
       body: `Scheduled at ${f.followupAt.toLocaleString()}`,
@@ -35,12 +37,13 @@ export async function runReminderTick(now = new Date()) {
   // 2) Overdue follow-ups (past due, still pending, not yet notified).
   const overdue = await prisma.followUp.findMany({
     where: { status: 'PENDING', overdueNotified: false, followupAt: { lt: now } },
-    select: { id: true, userId: true, client: { select: { name: true } } },
+    select: { id: true, userId: true, tenantId: true, client: { select: { name: true } } },
     take: 500,
   });
   for (const f of overdue) {
     await notify({
       userId: f.userId,
+      tenantId: f.tenantId,
       type: 'FOLLOWUP_OVERDUE',
       title: `Overdue follow-up: ${f.client?.name ?? 'client'}`,
       body: 'This follow-up is past its scheduled time.',
@@ -74,24 +77,38 @@ async function runDailySummaryIfDue(now) {
   y.setDate(y.getDate() - 1);
   const start = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 0, 0, 0, 0);
   const end = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999);
-
-  const [stats, converted, missedCount, recipients] = await Promise.all([
-    computeCallStats(prisma, { createdAt: { gte: start, lte: end } }),
-    prisma.client.count({ where: { leadStatus: 'CONVERTED', updatedAt: { gte: start, lte: end } } }),
-    prisma.followUp.count({ where: { status: 'MISSED', updatedAt: { gte: start, lte: end } } }),
-    prisma.user.findMany({ where: { role: { in: ['ADMIN', 'MANAGER'] }, status: 'ACTIVE' }, select: { id: true } }),
-  ]);
-
   const dateLabel = start.toISOString().slice(0, 10);
-  const body =
-    `Calls ${stats.totalCalls} · Answered ${stats.answeredCalls} (${stats.answerRate}%) · ` +
-    `Talk ${formatDuration(stats.totalTalkTimeSeconds)} · Converted ${converted} · Missed follow-ups ${missedCount}`;
 
-  for (const r of recipients) {
-    await notify({ userId: r.id, type: 'DAILY_SUMMARY', title: `Daily summary — ${dateLabel}`, body });
-    if (missedCount > 0) {
-      await notify({ userId: r.id, type: 'MISSED_FOLLOWUPS', title: `${missedCount} missed follow-up(s) yesterday`, body: 'Review overdue follow-ups.' });
-    }
+  // Summaries are computed PER TENANT — one tenant's numbers must never mix with
+  // another's. runAsTenant scopes every query below to that tenant.
+  const tenants = await prisma.tenant.findMany({
+    where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+    select: { id: true },
+  });
+
+  let sent = 0;
+  for (const t of tenants) {
+    sent += await runAsTenant(t.id, async () => {
+      const [stats, converted, missedCount, recipients] = await Promise.all([
+        computeCallStats(prisma, { createdAt: { gte: start, lte: end } }),
+        prisma.client.count({ where: { leadStatus: 'CONVERTED', updatedAt: { gte: start, lte: end } } }),
+        prisma.followUp.count({ where: { status: 'MISSED', updatedAt: { gte: start, lte: end } } }),
+        prisma.user.findMany({ where: { role: { in: ['ADMIN', 'MANAGER'] }, status: 'ACTIVE' }, select: { id: true } }),
+      ]);
+      if (recipients.length === 0) return 0;
+
+      const body =
+        `Calls ${stats.totalCalls} · Answered ${stats.answeredCalls} (${stats.answerRate}%) · ` +
+        `Talk ${formatDuration(stats.totalTalkTimeSeconds)} · Converted ${converted} · Missed follow-ups ${missedCount}`;
+
+      for (const r of recipients) {
+        await notify({ userId: r.id, type: 'DAILY_SUMMARY', title: `Daily summary — ${dateLabel}`, body });
+        if (missedCount > 0) {
+          await notify({ userId: r.id, type: 'MISSED_FOLLOWUPS', title: `${missedCount} missed follow-up(s) yesterday`, body: 'Review overdue follow-ups.' });
+        }
+      }
+      return recipients.length;
+    });
   }
 
   await prisma.counter.upsert({
@@ -99,7 +116,7 @@ async function runDailySummaryIfDue(now) {
     create: { key: 'daily_summary_day', value: todayKey },
     update: { value: todayKey },
   });
-  return { sent: recipients.length };
+  return { sent };
 }
 
 let timer = null;

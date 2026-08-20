@@ -28,6 +28,9 @@ export const login = asyncHandler(async (req, res) => {
   }
   if (user.status !== 'ACTIVE') throw ApiError.forbidden('Account is inactive');
 
+  // Tag the login audit with the caller's tenant (there is no auth context yet).
+  req.tenantId = user.tenantId || null;
+
   recordAudit(req, {
     action: 'LOGIN',
     entityType: 'User',

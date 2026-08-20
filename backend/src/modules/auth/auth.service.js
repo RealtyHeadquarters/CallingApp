@@ -11,9 +11,11 @@ export function verifyPassword(plain, hash) {
 }
 
 export function signToken(user) {
-  return jwt.sign({ sub: user.id, role: user.role }, env.jwtSecret, {
-    expiresIn: env.jwtExpiresIn,
-  });
+  return jwt.sign(
+    { sub: user.id, role: user.role, tenantId: user.tenantId ?? null },
+    env.jwtSecret,
+    { expiresIn: env.jwtExpiresIn }
+  );
 }
 
 // Shape a user for API responses (never leak the password hash).
