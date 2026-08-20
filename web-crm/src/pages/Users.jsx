@@ -72,7 +72,7 @@ export default function Users() {
       {error && <div className="card card-pad error-text">{error}</div>}
 
       <div className="card">
-        {state.loading ? <Loading /> : state.rows.length === 0 ? <Empty label="No users." /> : (
+        {state.loading ? <Loading skeleton /> : state.rows.length === 0 ? <Empty label="No users." /> : (
           <div className="table-wrap">
             <table className="data">
               <thead>

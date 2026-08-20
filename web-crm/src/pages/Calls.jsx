@@ -67,7 +67,7 @@ export default function Calls() {
       {error && <div className="card card-pad error-text">{error}</div>}
 
       <div className="card">
-        {state.loading ? <Loading /> : state.rows.length === 0 ? <Empty label="No calls found." /> : (
+        {state.loading ? <Loading skeleton /> : state.rows.length === 0 ? <Empty label="No calls found." /> : (
           <div className="table-wrap">
             <table className="data">
               <thead>

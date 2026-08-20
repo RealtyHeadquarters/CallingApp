@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api, { apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { Loading } from '../components/ui.jsx';
+import { Loading, CountUp } from '../components/ui.jsx';
 
 function Kpi({ label, value, sub, accent, icon }) {
   return (
@@ -15,7 +15,7 @@ function Kpi({ label, value, sub, accent, icon }) {
           }}>{icon}</div>
         )}
       </div>
-      <div className={`value ${accent ? 'accent' : ''}`}>{value}</div>
+      <div className={`value ${accent ? 'accent' : ''}`}>{typeof value === 'number' ? <CountUp value={value} /> : value}</div>
       {sub != null && <div className="sub">{sub}</div>}
     </div>
   );
