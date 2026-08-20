@@ -11,7 +11,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 // When a subscription is read-only (EXPIRED/CANCELLED), only these path prefixes
 // and safe (read) methods stay usable so the client can still see data + billing.
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const ALWAYS_ALLOWED = ['/api/auth', '/api/subscription'];
+const ALWAYS_ALLOWED = ['/api/auth', '/api/subscription', '/api/billing'];
 
 // Verifies the Bearer token, loads the user, and attaches it to req.user.
 export const authenticate = asyncHandler(async (req, _res, next) => {

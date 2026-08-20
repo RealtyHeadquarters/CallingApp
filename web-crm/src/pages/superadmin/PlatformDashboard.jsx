@@ -32,6 +32,7 @@ export default function PlatformDashboard() {
   if (!data) return <Loading />;
 
   const s = data.tenants.byStatus;
+  const money = (p) => '₹' + Math.round((p || 0) / 100).toLocaleString('en-IN');
   return (
     <>
       <div className="hero">
@@ -52,7 +53,8 @@ export default function PlatformDashboard() {
         <KCard label="Suspended" value={s.SUSPENDED} icon="⛔" orange />
         <KCard label="Total Users" value={data.totals.users} icon="👥" />
         <KCard label="Total Calls" value={data.totals.calls} icon="📞" />
-        <KCard label="Total Leads" value={data.totals.leads} icon="🎯" grad />
+        <KCard label="Total Leads" value={data.totals.leads} icon="🎯" />
+        <KCard label="Revenue (captured)" value={money(data.revenue)} icon="💰" grad />
       </div>
 
       <div className="section-head" style={{ marginTop: 22 }}>
