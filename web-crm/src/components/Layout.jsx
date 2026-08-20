@@ -14,17 +14,18 @@ const NAV = [
   { to: '/analytics', label: 'Analytics', ico: '📊', perm: 'report.view', feature: 'ADVANCED_REPORTS' },
   { to: '/users', label: 'Users', ico: '👥', perm: 'user.view' },
   { to: '/teams', label: 'Teams', ico: '🏢', perm: 'team.view' },
+  { to: '/activity', label: 'Activity', ico: '📋', perm: 'audit.view' },
   { to: '/subscription', label: 'Subscription', ico: '💳', roles: ['ADMIN'] },
 ];
 
 const TITLES = {
   '/': 'Dashboard', '/leads': 'Leads / Clients', '/calls': 'Call Report',
   '/follow-ups': 'Follow-ups', '/analytics': 'Analytics', '/users': 'Users', '/teams': 'Teams',
-  '/subscription': 'Subscription & Billing',
+  '/subscription': 'Subscription & Billing', '/activity': 'Activity Log',
 };
 
 export default function Layout({ children }) {
-  const { user, logout, can, hasFeature } = useAuth();
+  const { user, logout, can, hasFeature, branding } = useAuth();
   const loc = useLocation();
   const navVisible = (n) =>
     (!n.perm || can(n.perm)) && (!n.feature || hasFeature(n.feature)) && (!n.roles || n.roles.includes(user?.role));
@@ -37,8 +38,12 @@ export default function Layout({ children }) {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="logo">
-          <BrandMark size={36} />
-          <span className="wordmark">ProCalling<span className="ai">App</span></span>
+          {branding?.logoUrl
+            ? <img src={branding.logoUrl} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} />
+            : <BrandMark size={36} />}
+          <span className="wordmark">
+            {branding?.name ? branding.name : <>ProCalling<span className="ai">App</span></>}
+          </span>
         </div>
         {NAV.filter(navVisible).map((n) => (
           <NavLink

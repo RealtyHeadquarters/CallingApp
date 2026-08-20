@@ -28,10 +28,13 @@ export default function TenantDetail() {
     api.get(`/admin/tenants/${id}`).then((r) => setData(r.data)).catch((e) => setError(apiError(e)));
   }, [id]);
   const [payments, setPayments] = useState([]);
+  const [audit, setAudit] = useState([]);
+  const [showBranding, setShowBranding] = useState(false);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api.get('/admin/plans').then((r) => setPlans(r.data.data)).catch(() => {}); }, []);
   useEffect(() => { api.get('/admin/features').then((r) => setFeatureCatalog(r.data.features)).catch(() => {}); }, []);
   useEffect(() => { api.get(`/admin/tenants/${id}/payments`).then((r) => setPayments(r.data.data)).catch(() => {}); }, [id]);
+  useEffect(() => { api.get(`/admin/tenants/${id}/audit`).then((r) => setAudit(r.data.data)).catch(() => {}); }, [id]);
 
   async function setStatus(next) {
     const verb = next === 'SUSPENDED' ? 'Suspend' : 'Activate';
@@ -60,6 +63,7 @@ export default function TenantDetail() {
             </div>
           </div>
           <div className="row-gap" style={{ gap: 8 }}>
+            <button className="btn" onClick={() => setShowBranding(true)}>Branding</button>
             {t.status === 'SUSPENDED'
               ? <button className="btn primary" onClick={() => setStatus('ACTIVE')}>Activate</button>
               : <button className="btn" style={{ color: 'var(--red)' }} onClick={() => setStatus('SUSPENDED')}>Suspend</button>}
@@ -171,11 +175,85 @@ export default function TenantDetail() {
         </>
       )}
 
+      {/* Audit */}
+      {audit.length > 0 && (
+        <>
+          <div className="section-head" style={{ marginTop: 22 }}><h2>Recent Activity</h2></div>
+          <div className="card"><div className="table-wrap"><table className="data">
+            <thead><tr><th>When</th><th>User</th><th>Action</th><th>Details</th></tr></thead>
+            <tbody>
+              {audit.map((a) => (
+                <tr key={a.id}>
+                  <td className="muted" style={{ whiteSpace: 'nowrap' }}>{fmtDate(a.createdAt)}</td>
+                  <td>{a.user?.name || '—'}</td>
+                  <td>{titleCase(a.action)}</td>
+                  <td className="muted">{a.description || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div></div>
+        </>
+      )}
+
+      {showBranding && <BrandingModal tenantId={id} tenant={t} onClose={() => setShowBranding(false)} onSaved={() => { setShowBranding(false); load(); }} />}
       {showAddUser && <AddUserModal tenantId={id} onClose={() => setShowAddUser(false)} onSaved={() => { setShowAddUser(false); load(); }} />}
       {resetUser && <ResetPasswordModal tenantId={id} user={resetUser} onClose={() => setResetUser(null)} onSaved={() => setResetUser(null)} />}
       {showSub && <ManageSubscriptionModal tenantId={id} plans={plans} current={data.subscription} onClose={() => setShowSub(false)} onSaved={() => { setShowSub(false); load(); }} />}
       {showFeatures && <FeatureModal tenantId={id} catalog={featureCatalog} effective={data.features || []} onClose={() => setShowFeatures(false)} onSaved={() => { setShowFeatures(false); load(); }} />}
     </>
+  );
+}
+
+function BrandingModal({ tenantId, tenant, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    name: tenant.name || '', logoUrl: tenant.logoUrl || '',
+    primaryColor: tenant.primaryColor || '#2f6bff', secondaryColor: tenant.secondaryColor || '#f97316',
+    customDomain: tenant.customDomain || '',
+  });
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  async function save() {
+    setBusy(true); setError('');
+    try {
+      await api.patch(`/admin/tenants/${tenantId}`, {
+        name: form.name,
+        logoUrl: form.logoUrl || null,
+        primaryColor: form.primaryColor || null,
+        secondaryColor: form.secondaryColor || null,
+        customDomain: form.customDomain || null,
+      });
+      onSaved();
+    } catch (err) { setError(apiError(err)); } finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title="Branding (white-label)" onClose={onClose} footer={<>
+      <button className="btn" onClick={onClose}>Cancel</button>
+      <button className="btn primary" onClick={save} disabled={busy || form.name.length < 2}>Save</button>
+    </>}>
+      {error && <div className="error-text">{error}</div>}
+      <div className="field"><label>Company name</label><input className="input" value={form.name} onChange={set('name')} /></div>
+      <div className="field"><label>Logo URL</label><input className="input" value={form.logoUrl} onChange={set('logoUrl')} placeholder="https://…/logo.png" /></div>
+      <div className="row-gap" style={{ gap: 12 }}>
+        <div className="field" style={{ flex: 1 }}>
+          <label>Primary colour</label>
+          <div className="row-gap" style={{ gap: 8, alignItems: 'center' }}>
+            <input type="color" value={form.primaryColor} onChange={set('primaryColor')} style={{ width: 40, height: 34, border: 'none', background: 'none' }} />
+            <input className="input" value={form.primaryColor} onChange={set('primaryColor')} />
+          </div>
+        </div>
+        <div className="field" style={{ flex: 1 }}>
+          <label>Accent colour</label>
+          <div className="row-gap" style={{ gap: 8, alignItems: 'center' }}>
+            <input type="color" value={form.secondaryColor} onChange={set('secondaryColor')} style={{ width: 40, height: 34, border: 'none', background: 'none' }} />
+            <input className="input" value={form.secondaryColor} onChange={set('secondaryColor')} />
+          </div>
+        </div>
+      </div>
+      <div className="field" style={{ marginBottom: 0 }}><label>Custom domain (optional)</label><input className="input" value={form.customDomain} onChange={set('customDomain')} placeholder="crm.client.com" /></div>
+    </Modal>
   );
 }
 

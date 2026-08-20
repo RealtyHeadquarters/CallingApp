@@ -42,6 +42,10 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
       tenant: {
         select: {
           status: true,
+          name: true,
+          logoUrl: true,
+          primaryColor: true,
+          secondaryColor: true,
           featureOverrides: true,
           subscription: {
             select: {
@@ -82,6 +86,9 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   // and the role's granular permissions. Gated via requireFeature/requirePermission.
   req.features = isSuperAdmin ? [...FEATURE_KEYS] : computeFeatures(user.tenant?.subscription?.plan || null, user.tenant?.featureOverrides);
   req.permissions = computePermissions(user.role);
+  req.branding = user.tenant
+    ? { name: user.tenant.name, logoUrl: user.tenant.logoUrl, primaryColor: user.tenant.primaryColor, secondaryColor: user.tenant.secondaryColor }
+    : null;
   if (!isSuperAdmin && sub.readOnly && !SAFE_METHODS.has(req.method)) {
     const path = req.originalUrl || req.url || '';
     const allowed = ALWAYS_ALLOWED.some((p) => path.startsWith(p));

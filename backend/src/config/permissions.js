@@ -8,6 +8,7 @@ export const PERMISSIONS = [
   'user.view', 'user.create', 'user.edit', 'user.delete',
   'team.view', 'team.manage',
   'followup.view', 'followup.manage',
+  'audit.view',
 ];
 
 const ALL = [...PERMISSIONS];

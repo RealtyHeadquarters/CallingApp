@@ -52,6 +52,16 @@ export const platformStats = asyncHandler(async (_req, res) => {
   });
 });
 
+// A tenant's recent audit trail (super admin).
+export const listTenantAudit = asyncHandler(async (req, res) => {
+  await requireTenant(req.params.id);
+  const rows = await prisma.auditLog.findMany({
+    where: { tenantId: req.params.id }, orderBy: { createdAt: 'desc' }, take: 50,
+    select: { id: true, action: true, entityType: true, description: true, createdAt: true, user: { select: { name: true } } },
+  });
+  res.json({ data: rows });
+});
+
 // A tenant's payment history (super admin).
 export const listTenantPayments = asyncHandler(async (req, res) => {
   await requireTenant(req.params.id);
