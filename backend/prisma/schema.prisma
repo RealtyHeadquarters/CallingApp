@@ -123,6 +123,9 @@ model Tenant {
   contactEmail   String?       @map("contact_email")
   contactPhone   String?       @map("contact_phone")
 
+  // Per-tenant feature add/remove on top of the plan (map of featureKey -> bool).
+  featureOverrides Json?       @map("feature_overrides")
+
   users          User[]
   teams          Team[]
   clients        Client[]
@@ -413,6 +416,7 @@ model SubscriptionPlan {
   userLimit      Int?      @map("user_limit")        // null = unlimited
   callLimit      Int?      @map("call_limit")         // per billing period
   storageLimitMb Int?      @map("storage_limit_mb")
+  features       String[]  @default([])               // enabled feature keys
   isActive       Boolean   @default(true) @map("is_active")
   sortOrder      Int       @default(0) @map("sort_order")
 

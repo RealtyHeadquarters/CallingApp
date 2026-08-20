@@ -1,14 +1,15 @@
 // Seed the default plan catalog + give the primary tenant an active Enterprise
 // subscription (so the live app is never restricted). Idempotent.
 import { PrismaClient } from '@prisma/client';
+import { DEFAULT_PLAN_FEATURES } from '../src/config/features.js';
 
 const prisma = new PrismaClient();
 
-// Prices in paise (₹). null limit = unlimited.
+// Prices in paise (₹). null limit = unlimited. features from the catalog defaults.
 const PLANS = [
-  { code: 'STARTER', name: 'Starter', priceMonthly: 99900, priceYearly: 999000, userLimit: 5, callLimit: 5000, storageLimitMb: 512, sortOrder: 1 },
-  { code: 'BUSINESS', name: 'Business', priceMonthly: 299900, priceYearly: 2999000, userLimit: 25, callLimit: 50000, storageLimitMb: 5120, sortOrder: 2 },
-  { code: 'ENTERPRISE', name: 'Enterprise', priceMonthly: 999900, priceYearly: 9999000, userLimit: null, callLimit: null, storageLimitMb: null, sortOrder: 3 },
+  { code: 'STARTER', name: 'Starter', priceMonthly: 99900, priceYearly: 999000, userLimit: 5, callLimit: 5000, storageLimitMb: 512, sortOrder: 1, features: DEFAULT_PLAN_FEATURES.STARTER },
+  { code: 'BUSINESS', name: 'Business', priceMonthly: 299900, priceYearly: 2999000, userLimit: 25, callLimit: 50000, storageLimitMb: 5120, sortOrder: 2, features: DEFAULT_PLAN_FEATURES.BUSINESS },
+  { code: 'ENTERPRISE', name: 'Enterprise', priceMonthly: 999900, priceYearly: 9999000, userLimit: null, callLimit: null, storageLimitMb: null, sortOrder: 3, features: DEFAULT_PLAN_FEATURES.ENTERPRISE },
 ];
 
 async function main() {

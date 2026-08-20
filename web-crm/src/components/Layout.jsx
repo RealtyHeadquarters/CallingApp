@@ -5,15 +5,15 @@ import NotificationBell from './NotificationBell.jsx';
 import BrandMark from './BrandMark.jsx';
 import { GraceBanner } from './SubscriptionGate.jsx';
 
-// Sidebar navigation (spec §43). Some items are admin/manager only.
+// Sidebar navigation (spec §43). Gated by granular permission/feature (not roles).
 const NAV = [
   { to: '/', label: 'Dashboard', ico: '▧', end: true },
-  { to: '/leads', label: 'Leads / Clients', ico: '☰' },
-  { to: '/calls', label: 'Calls', ico: '☎' },
-  { to: '/follow-ups', label: 'Follow-ups', ico: '⏰' },
-  { to: '/analytics', label: 'Analytics', ico: '📊', roles: ['ADMIN', 'MANAGER'] },
-  { to: '/users', label: 'Users', ico: '👥', roles: ['ADMIN', 'MANAGER'] },
-  { to: '/teams', label: 'Teams', ico: '🏢', roles: ['ADMIN', 'MANAGER'] },
+  { to: '/leads', label: 'Leads / Clients', ico: '☰', perm: 'lead.view' },
+  { to: '/calls', label: 'Calls', ico: '☎', perm: 'call.view' },
+  { to: '/follow-ups', label: 'Follow-ups', ico: '⏰', perm: 'followup.view' },
+  { to: '/analytics', label: 'Analytics', ico: '📊', perm: 'report.view', feature: 'ADVANCED_REPORTS' },
+  { to: '/users', label: 'Users', ico: '👥', perm: 'user.view' },
+  { to: '/teams', label: 'Teams', ico: '🏢', perm: 'team.view' },
   { to: '/subscription', label: 'Subscription', ico: '💳', roles: ['ADMIN'] },
 ];
 
@@ -24,8 +24,10 @@ const TITLES = {
 };
 
 export default function Layout({ children }) {
-  const { user, logout } = useAuth();
+  const { user, logout, can, hasFeature } = useAuth();
   const loc = useLocation();
+  const navVisible = (n) =>
+    (!n.perm || can(n.perm)) && (!n.feature || hasFeature(n.feature)) && (!n.roles || n.roles.includes(user?.role));
   const title = TITLES[loc.pathname]
     || (loc.pathname.startsWith('/leads/') ? 'Lead Profile'
       : loc.pathname.startsWith('/users/') ? 'Agent Detail'
@@ -38,7 +40,7 @@ export default function Layout({ children }) {
           <BrandMark size={36} />
           <span className="wordmark">ProCalling<span className="ai">App</span></span>
         </div>
-        {NAV.filter((n) => !n.roles || n.roles.includes(user?.role)).map((n) => (
+        {NAV.filter(navVisible).map((n) => (
           <NavLink
             key={n.to}
             to={n.to}

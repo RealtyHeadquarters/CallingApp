@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../../middleware/auth.js';
-import { requireRole } from '../../middleware/rbac.js';
+import { requirePermission } from '../../middleware/entitlement.js';
 import { validate } from '../../middleware/validate.js';
 import {
   listUsers, listUsersQuery, getUser,
@@ -19,11 +19,11 @@ router.patch('/me', validate(updateMeSchema), updateMe);
 router.patch('/me/status', validate(agentStatusSchema), updateMyStatus);
 
 // Admin/Manager management
-router.get('/', requireRole('ADMIN', 'MANAGER'), validate(listUsersQuery, 'query'), listUsers);
-router.get('/:id', requireRole('ADMIN', 'MANAGER'), getUser);
-router.post('/', requireRole('ADMIN'), validate(createUserSchema), createUser);
-router.patch('/:id', requireRole('ADMIN'), validate(updateUserSchema), updateUser);
-router.delete('/:id/permanent', requireRole('ADMIN'), deleteUserPermanent);
-router.delete('/:id', requireRole('ADMIN'), deactivateUser);
+router.get('/', requirePermission('user.view'), validate(listUsersQuery, 'query'), listUsers);
+router.get('/:id', requirePermission('user.view'), getUser);
+router.post('/', requirePermission('user.create'), validate(createUserSchema), createUser);
+router.patch('/:id', requirePermission('user.edit'), validate(updateUserSchema), updateUser);
+router.delete('/:id/permanent', requirePermission('user.delete'), deleteUserPermanent);
+router.delete('/:id', requirePermission('user.delete'), deactivateUser);
 
 export default router;

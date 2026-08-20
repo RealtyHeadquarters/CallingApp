@@ -10,8 +10,8 @@ import { fmtDateTime, titleCase } from '../lib/format.js';
 
 export default function Calls() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const canExport = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const { user, can } = useAuth();
+  const canViewAll = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const [state, setState] = useState({ loading: true, rows: [], pagination: null });
   const [filters, setFilters] = useState({ callStatus: '', disposition: '', datePreset: '', search: '', userId: '', direction: '' });
   const [page, setPage] = useState(1);
@@ -36,7 +36,7 @@ export default function Calls() {
     <>
       <div className="toolbar">
         <input className="input grow" placeholder="Search phone, Call ID, client…" value={filters.search} onChange={setF('search')} />
-        {canExport && <AgentFilter value={filters.userId} onChange={(v) => { setPage(1); setFilters((f) => ({ ...f, userId: v })); }} />}
+        {canViewAll && <AgentFilter value={filters.userId} onChange={(v) => { setPage(1); setFilters((f) => ({ ...f, userId: v })); }} />}
         <select className="select" value={filters.direction} onChange={setF('direction')}>
           <option value="">All calls</option>
           {CALL_DIRECTIONS.map((d) => <option key={d} value={d}>{d === 'INCOMING' ? '↙ Incoming' : '↗ Outgoing'}</option>)}
@@ -52,16 +52,14 @@ export default function Calls() {
         <select className="select" value={filters.datePreset} onChange={setF('datePreset')}>
           {DATE_PRESETS.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
         </select>
-        {canExport && (
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
-            <ExportMenu
-              path="/exports/calls"
-              params={{ callStatus: filters.callStatus || undefined, disposition: filters.disposition || undefined, datePreset: filters.datePreset || undefined, userId: filters.userId || undefined }}
-              name="call-report"
-            />
-            <button className="btn primary" onClick={() => setShowAdd(true)}>+ Add Call</button>
-          </div>
-        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+          <ExportMenu
+            path="/exports/calls"
+            params={{ callStatus: filters.callStatus || undefined, disposition: filters.disposition || undefined, datePreset: filters.datePreset || undefined, userId: filters.userId || undefined }}
+            name="call-report"
+          />
+          {can('call.manual') && <button className="btn primary" onClick={() => setShowAdd(true)}>+ Add Call</button>}
+        </div>
       </div>
 
       {error && <div className="card card-pad error-text">{error}</div>}

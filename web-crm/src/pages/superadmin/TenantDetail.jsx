@@ -20,12 +20,15 @@ export default function TenantDetail() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [resetUser, setResetUser] = useState(null);
   const [showSub, setShowSub] = useState(false);
+  const [showFeatures, setShowFeatures] = useState(false);
+  const [featureCatalog, setFeatureCatalog] = useState([]);
 
   const load = useCallback(() => {
     api.get(`/admin/tenants/${id}`).then((r) => setData(r.data)).catch((e) => setError(apiError(e)));
   }, [id]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api.get('/admin/plans').then((r) => setPlans(r.data.data)).catch(() => {}); }, []);
+  useEffect(() => { api.get('/admin/features').then((r) => setFeatureCatalog(r.data.features)).catch(() => {}); }, []);
 
   async function setStatus(next) {
     const verb = next === 'SUSPENDED' ? 'Suspend' : 'Activate';
@@ -94,6 +97,20 @@ export default function TenantDetail() {
         })() : <div className="muted">No subscription. Click Manage to assign a plan or trial.</div>}
       </div>
 
+      {/* Features */}
+      <div className="section-head" style={{ marginTop: 22 }}>
+        <h2>Features</h2>
+        <button className="btn sm" onClick={() => setShowFeatures(true)}>Manage features</button>
+      </div>
+      <div className="card card-pad">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {(data.features || []).length === 0 ? <span className="muted">No features enabled.</span> : (data.features || []).map((f) => (
+            <span key={f} className="badge green">{(featureCatalog.find((c) => c.key === f)?.label) || f}</span>
+          ))}
+        </div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>Effective features = plan features ± tenant overrides.</div>
+      </div>
+
       <div className="section-head" style={{ marginTop: 22 }}>
         <h2>Users</h2>
         <button className="btn primary sm" onClick={() => setShowAddUser(true)}>+ Add User</button>
@@ -122,7 +139,42 @@ export default function TenantDetail() {
       {showAddUser && <AddUserModal tenantId={id} onClose={() => setShowAddUser(false)} onSaved={() => { setShowAddUser(false); load(); }} />}
       {resetUser && <ResetPasswordModal tenantId={id} user={resetUser} onClose={() => setResetUser(null)} onSaved={() => setResetUser(null)} />}
       {showSub && <ManageSubscriptionModal tenantId={id} plans={plans} current={data.subscription} onClose={() => setShowSub(false)} onSaved={() => { setShowSub(false); load(); }} />}
+      {showFeatures && <FeatureModal tenantId={id} catalog={featureCatalog} effective={data.features || []} onClose={() => setShowFeatures(false)} onSaved={() => { setShowFeatures(false); load(); }} />}
     </>
+  );
+}
+
+function FeatureModal({ tenantId, catalog, effective, onClose, onSaved }) {
+  const [enabled, setEnabled] = useState(() => new Set(effective));
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const toggle = (key) => setEnabled((s) => { const n = new Set(s); n.has(key) ? n.delete(key) : n.add(key); return n; });
+
+  async function save(reset) {
+    setBusy(true); setError('');
+    try {
+      // reset → clear overrides (inherit plan). Otherwise pin every feature explicitly.
+      const overrides = reset ? {} : Object.fromEntries(catalog.map((f) => [f.key, enabled.has(f.key)]));
+      await api.patch(`/admin/tenants/${tenantId}/features`, { overrides });
+      onSaved();
+    } catch (err) { setError(apiError(err)); } finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title="Feature access" onClose={onClose} footer={<>
+      <button className="btn" onClick={() => save(true)} disabled={busy}>Reset to plan</button>
+      <button className="btn primary" onClick={() => save(false)} disabled={busy}>Save overrides</button>
+    </>}>
+      {error && <div className="error-text">{error}</div>}
+      <p className="muted" style={{ marginTop: 0, fontSize: 13 }}>Toggle features for this client. Saving pins these values (overrides the plan); Reset returns to plan defaults.</p>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {catalog.map((f) => (
+          <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={enabled.has(f.key)} onChange={() => toggle(f.key)} /> {f.label}
+          </label>
+        ))}
+      </div>
+    </Modal>
   );
 }
 

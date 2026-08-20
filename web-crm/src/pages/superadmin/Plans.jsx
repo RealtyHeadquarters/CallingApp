@@ -66,12 +66,16 @@ function PlanModal({ plan, onClose, onSaved }) {
     priceMonthly: plan.priceMonthly != null ? plan.priceMonthly / 100 : '',
     priceYearly: plan.priceYearly != null ? plan.priceYearly / 100 : '',
     userLimit: plan.userLimit ?? '', callLimit: plan.callLimit ?? '', storageLimitMb: plan.storageLimitMb ?? '',
-    isActive: plan.isActive ?? true, sortOrder: plan.sortOrder ?? 0,
+    features: plan.features || [], isActive: plan.isActive ?? true, sortOrder: plan.sortOrder ?? 0,
   });
+  const [catalog, setCatalog] = useState([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const num = (v) => (v === '' ? null : Number(v));
+
+  useEffect(() => { api.get('/admin/features').then((r) => setCatalog(r.data.features)).catch(() => {}); }, []);
+  const toggleFeature = (key) => setForm((f) => ({ ...f, features: f.features.includes(key) ? f.features.filter((k) => k !== key) : [...f.features, key] }));
 
   async function save() {
     setBusy(true); setError('');
@@ -81,6 +85,7 @@ function PlanModal({ plan, onClose, onSaved }) {
         priceMonthly: Math.round(Number(form.priceMonthly || 0) * 100),
         priceYearly: Math.round(Number(form.priceYearly || 0) * 100),
         userLimit: num(form.userLimit), callLimit: num(form.callLimit), storageLimitMb: num(form.storageLimitMb),
+        features: form.features,
         isActive: !!form.isActive, sortOrder: Number(form.sortOrder || 0),
       };
       if (isNew) await api.post('/admin/plans', payload);
@@ -118,6 +123,17 @@ function PlanModal({ plan, onClose, onSaved }) {
         </label>
       </div>
       <p className="muted" style={{ fontSize: 12 }}>Leave a limit blank for unlimited.</p>
+
+      <div className="field">
+        <label>Included features</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+          {catalog.map((f) => (
+            <label key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13.5 }}>
+              <input type="checkbox" checked={form.features.includes(f.key)} onChange={() => toggleFeature(f.key)} /> {f.label}
+            </label>
+          ))}
+        </div>
+      </div>
     </Modal>
   );
 }

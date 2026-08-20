@@ -14,6 +14,7 @@ import {
   listPlans, createPlan, createPlanSchema, updatePlan, updatePlanSchema,
   assignPlan, assignPlanSchema, startTrial, startTrialSchema,
   extendSubscription, extendSchema, cancelSubscription,
+  listFeatures, setTenantFeatures, setTenantFeaturesSchema,
 } from './admin.controller.js';
 
 const router = Router();
@@ -32,6 +33,10 @@ router.patch('/tenants/:id/status', validate(setTenantStatusSchema), setTenantSt
 
 router.post('/tenants/:id/users', validate(createTenantUserSchema), createTenantUser);
 router.patch('/tenants/:id/users/:userId/password', validate(resetUserPasswordSchema), resetTenantUserPassword);
+
+// Feature catalog + per-tenant feature overrides
+router.get('/features', listFeatures);
+router.patch('/tenants/:id/features', validate(setTenantFeaturesSchema), setTenantFeatures);
 
 // Plan catalog
 router.get('/plans', listPlans);
