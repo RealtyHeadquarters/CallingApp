@@ -359,3 +359,58 @@ tbody tr:hover .badge { transform: translateY(-1px); }
 
 /* Focus-visible ring for accessibility */
 .btn:focus-visible, .nav-item:focus-visible { outline: 2px solid var(--brand-400); outline-offset: 2px; }
+
+/* ══════════════ Hero banner + premium KPI cards ══════════════ */
+body { background: radial-gradient(1100px 560px at 100% -5%, rgba(47,107,255,0.07), transparent 60%),
+                    radial-gradient(900px 500px at -5% 105%, rgba(249,115,22,0.06), transparent 55%), var(--bg); }
+
+@keyframes floaty { 0%,100% { transform: translate(0,0); } 50% { transform: translate(0,-12px); } }
+@keyframes orbit { from { transform: rotate(0) translateX(0); } to { transform: rotate(360deg); } }
+
+.hero {
+  position: relative; overflow: hidden; border-radius: 26px;
+  padding: 30px 34px; margin-bottom: 26px; color: #fff;
+  background: linear-gradient(115deg, #12235c 0%, #1d4ed8 42%, #2f6bff 68%, #f97316 128%);
+  box-shadow: 0 20px 50px -20px rgba(23,58,122,0.55);
+  animation: fadeUp 0.5s var(--ease) both;
+}
+.hero::before { content: ""; position: absolute; width: 320px; height: 320px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.22), transparent 70%);
+  top: -140px; right: 8%; filter: blur(6px); animation: floaty 8s ease-in-out infinite; }
+.hero::after { content: ""; position: absolute; width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(249,115,22,0.5), transparent 65%);
+  bottom: -130px; right: 22%; filter: blur(24px); }
+.hero-greeting { font-family: var(--font-display); font-size: 27px; font-weight: 800; letter-spacing: -0.02em; position: relative; z-index: 1; }
+.hero-sub { opacity: 0.85; margin-top: 6px; font-size: 13.5px; position: relative; z-index: 1; }
+.hero-chips { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; position: relative; z-index: 1; }
+.hero-chip {
+  background: rgba(255,255,255,0.14); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.18); border-radius: 14px; padding: 12px 16px; min-width: 120px;
+  transition: transform 0.25s var(--ease), background 0.25s;
+}
+.hero-chip:hover { transform: translateY(-3px); background: rgba(255,255,255,0.2); }
+.hero-chip .hc-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.8; font-weight: 650; }
+.hero-chip .hc-value { font-family: var(--font-display); font-size: 22px; font-weight: 800; margin-top: 3px; }
+
+/* Premium KPI cards with gradient icon tile */
+.kgrid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); margin-bottom: 26px; }
+.kcard {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
+  padding: 18px 20px; display: flex; align-items: center; gap: 15px; position: relative; overflow: hidden;
+  box-shadow: var(--shadow-sm); transition: transform 0.28s var(--ease), box-shadow 0.28s var(--ease), border-color 0.2s;
+  animation: fadeUp 0.5s var(--ease) both;
+}
+.kcard:hover { transform: translateY(-5px); box-shadow: var(--shadow); border-color: transparent; }
+.kcard:nth-child(1){animation-delay:.03s}.kcard:nth-child(2){animation-delay:.07s}.kcard:nth-child(3){animation-delay:.11s}
+.kcard:nth-child(4){animation-delay:.15s}.kcard:nth-child(5){animation-delay:.19s}.kcard:nth-child(6){animation-delay:.23s}
+.kcard:nth-child(7){animation-delay:.27s}.kcard:nth-child(8){animation-delay:.31s}.kcard:nth-child(9){animation-delay:.35s}
+.kcard .tile {
+  width: 50px; height: 50px; border-radius: 15px; flex-shrink: 0;
+  display: grid; place-items: center; font-size: 22px; color: #fff;
+  background: var(--grad-brand-soft); box-shadow: var(--glow);
+}
+.kcard.orange .tile { background: linear-gradient(135deg, #fb923c, #ea580c); box-shadow: var(--glow-orange); }
+.kcard .kbody { min-width: 0; }
+.kcard .klabel { color: var(--text-3); font-size: 11.5px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.05em; }
+.kcard .kvalue { font-family: var(--font-display); font-size: 26px; font-weight: 800; margin-top: 3px; letter-spacing: -0.02em; line-height: 1.1; }
+.kcard .kvalue.grad { background: var(--grad-brand); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }

@@ -3,20 +3,37 @@ import api, { apiError } from '../api/client.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { Loading, CountUp } from '../components/ui.jsx';
 
-function Kpi({ label, value, sub, accent, icon }) {
+// Premium KPI card — gradient icon tile + animated value.
+function KCard({ label, value, icon, orange, grad }) {
   return (
-    <div className="card kpi">
-      <div className="row-gap" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div className="label">{label}</div>
-        {icon && (
-          <div style={{
-            width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center',
-            fontSize: 16, background: 'linear-gradient(135deg, rgba(91,96,240,0.14), rgba(16,197,192,0.14))',
-          }}>{icon}</div>
-        )}
+    <div className={`kcard ${orange ? 'orange' : ''}`}>
+      <div className="tile">{icon}</div>
+      <div className="kbody">
+        <div className="klabel">{label}</div>
+        <div className={`kvalue ${grad ? 'grad' : ''}`}>
+          {typeof value === 'number' ? <CountUp value={value} /> : value}
+        </div>
       </div>
-      <div className={`value ${accent ? 'accent' : ''}`}>{typeof value === 'number' ? <CountUp value={value} /> : value}</div>
-      {sub != null && <div className="sub">{sub}</div>}
+    </div>
+  );
+}
+
+function Hero({ name, subtitle, chips }) {
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const date = new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+  return (
+    <div className="hero">
+      <div className="hero-greeting">{greet}, {name} 👋</div>
+      <div className="hero-sub">{date} · {subtitle}</div>
+      <div className="hero-chips">
+        {chips.map((c) => (
+          <div className="hero-chip" key={c.label}>
+            <div className="hc-label">{c.label}</div>
+            <div className="hc-value">{c.value}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -26,6 +43,7 @@ export default function Dashboard() {
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'MANAGER';
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const firstName = (user?.name || 'there').split(' ')[0];
 
   useEffect(() => {
     api
@@ -41,24 +59,34 @@ export default function Dashboard() {
     const o = data.organization;
     return (
       <>
-        <div className="kpi-grid">
-          <Kpi label="Total Leads" value={o.totalLeads} icon="🎯" />
-          <Kpi label="Total Calls" value={o.totalCalls} icon="📞" />
-          <Kpi label="Incoming" value={o.incomingCalls ?? 0} icon="↙️" />
-          <Kpi label="Outgoing" value={o.outgoingCalls ?? 0} icon="↗️" />
-          <Kpi label="Answered" value={o.answeredCalls} icon="✅" />
-          <Kpi label="Unanswered" value={o.unansweredCalls} icon="📵" />
-          <Kpi label="Answer Rate" value={`${o.answerRate}%`} accent icon="📈" />
-          <Kpi label="Total Talk Time" value={o.totalTalkTime} icon="⏱️" />
-          <Kpi label="Avg Talk Time" value={o.avgTalkTime} icon="🕐" />
-          <Kpi label="Converted Leads" value={o.convertedLeads} accent icon="🏆" />
-          <Kpi label="Active Users" value={`${o.activeUsers} / ${o.totalUsers}`} icon="👥" />
+        <Hero
+          name={firstName}
+          subtitle="Here's your organization at a glance"
+          chips={[
+            { label: 'Total Calls', value: o.totalCalls },
+            { label: 'Answer Rate', value: `${o.answerRate}%` },
+            { label: 'Converted', value: o.convertedLeads },
+            { label: 'Active Agents', value: `${o.activeUsers}/${o.totalUsers}` },
+          ]}
+        />
+        <div className="kgrid">
+          <KCard label="Total Leads" value={o.totalLeads} icon="🎯" />
+          <KCard label="Total Calls" value={o.totalCalls} icon="📞" />
+          <KCard label="Incoming" value={o.incomingCalls ?? 0} icon="↙" orange />
+          <KCard label="Outgoing" value={o.outgoingCalls ?? 0} icon="↗" />
+          <KCard label="Answered" value={o.answeredCalls} icon="✅" />
+          <KCard label="Unanswered" value={o.unansweredCalls} icon="📵" orange />
+          <KCard label="Answer Rate" value={`${o.answerRate}%`} icon="📈" grad />
+          <KCard label="Talk Time" value={o.totalTalkTime} icon="⏱️" />
+          <KCard label="Avg Talk Time" value={o.avgTalkTime} icon="🕐" />
+          <KCard label="Converted Leads" value={o.convertedLeads} icon="🏆" orange />
         </div>
+
         <div className="section-head"><h2>Follow-ups</h2></div>
-        <div className="kpi-grid">
-          <Kpi label="Today" value={data.followUps.today} />
-          <Kpi label="Pending" value={data.followUps.pending} />
-          <Kpi label="Overdue" value={data.followUps.overdue} sub="need attention" />
+        <div className="kgrid">
+          <KCard label="Today" value={data.followUps.today} icon="🔔" />
+          <KCard label="Pending" value={data.followUps.pending} icon="⏳" />
+          <KCard label="Overdue" value={data.followUps.overdue} icon="⚠️" orange />
         </div>
       </>
     );
@@ -68,26 +96,33 @@ export default function Dashboard() {
   const k = data.kpis;
   return (
     <>
-      <div className="kpi-grid">
-        <Kpi label="Total Calls" value={k.totalCalls} sub="today" icon="📞" />
-        <Kpi label="Answered" value={k.answeredCalls} icon="✅" />
-        <Kpi label="Unanswered" value={k.unansweredCalls} icon="📵" />
-        <Kpi label="Answer Rate" value={`${k.answerRate}%`} accent icon="📈" />
-        <Kpi label="Talk Time" value={k.totalTalkTime} icon="⏱️" />
-        <Kpi label="Avg Talk Time" value={k.avgTalkTime} icon="🕐" />
-        <Kpi label="Today's Follow-ups" value={data.followUps.today} icon="🔔" />
-        <Kpi label="Pending Follow-ups" value={data.followUps.pending} icon="⏳" />
+      <Hero
+        name={firstName}
+        subtitle="Here's your performance today"
+        chips={[
+          { label: "Today's Calls", value: k.totalCalls },
+          { label: 'Answer Rate', value: `${k.answerRate}%` },
+          { label: 'Talk Time', value: k.totalTalkTime },
+          { label: 'Follow-ups', value: data.followUps.today },
+        ]}
+      />
+      <div className="kgrid">
+        <KCard label="Total Calls" value={k.totalCalls} icon="📞" />
+        <KCard label="Answered" value={k.answeredCalls} icon="✅" />
+        <KCard label="Unanswered" value={k.unansweredCalls} icon="📵" orange />
+        <KCard label="Answer Rate" value={`${k.answerRate}%`} icon="📈" grad />
+        <KCard label="Talk Time" value={k.totalTalkTime} icon="⏱️" />
+        <KCard label="Avg Talk Time" value={k.avgTalkTime} icon="🕐" />
+        <KCard label="Today's Follow-ups" value={data.followUps.today} icon="🔔" />
+        <KCard label="Pending Follow-ups" value={data.followUps.pending} icon="⏳" orange />
       </div>
+
       {data.targets && (
         <>
           <div className="section-head"><h2>Today's Targets</h2></div>
-          <div className="kpi-grid">
-            {data.targets.calls && (
-              <Kpi label="Calls" value={`${data.targets.calls.done} / ${data.targets.calls.target}`} />
-            )}
-            {data.targets.talkTime && (
-              <Kpi label="Talk Time" value={`${data.targets.talkTime.done} / ${data.targets.talkTime.target}`} />
-            )}
+          <div className="kgrid">
+            {data.targets.calls && <KCard label="Calls" value={`${data.targets.calls.done} / ${data.targets.calls.target}`} icon="🎯" />}
+            {data.targets.talkTime && <KCard label="Talk Time" value={`${data.targets.talkTime.done} / ${data.targets.talkTime.target}`} icon="⏱️" orange />}
           </div>
         </>
       )}
