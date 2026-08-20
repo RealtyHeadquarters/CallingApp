@@ -31,6 +31,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
       status: true,
       teamId: true,
       tenantId: true,
+      tenant: { select: { status: true } },
     },
   });
   if (!user) throw ApiError.unauthorized('User no longer exists');
@@ -41,6 +42,12 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   const isSuperAdmin = user.role === 'SUPER_ADMIN';
   if (!isSuperAdmin && !user.tenantId) {
     throw ApiError.forbidden('Your account is not attached to an organization');
+  }
+
+  // A suspended organization is locked out entirely (super-admin action).
+  // EXPIRED (subscription lapse) gets read-only/grace handling in a later phase.
+  if (!isSuperAdmin && user.tenant?.status === 'SUSPENDED') {
+    throw ApiError.forbidden('Your organization has been suspended. Please contact support.');
   }
 
   req.user = user;
