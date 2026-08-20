@@ -43,7 +43,9 @@ export const login = asyncHandler(async (req, res) => {
 
 export const me = asyncHandler(async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-  res.json({ user: publicUser(user) });
+  // req.subscription is the effective access state computed in the auth middleware
+  // (state/readOnly/inGrace/endsAt) — the client uses it to gate the UI.
+  res.json({ user: publicUser(user), subscription: req.subscription ?? null });
 });
 
 export const changePasswordSchema = z.object({

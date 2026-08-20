@@ -16,6 +16,9 @@ export class ApiError extends Error {
   static forbidden(msg = 'Forbidden') {
     return new ApiError(403, msg);
   }
+  static paymentRequired(msg = 'Payment required', details) {
+    return new ApiError(402, msg, details);
+  }
   static notFound(msg = 'Not found') {
     return new ApiError(404, msg);
   }

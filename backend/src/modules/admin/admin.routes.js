@@ -11,6 +11,9 @@ import {
   setTenantStatus, setTenantStatusSchema,
   createTenantUser, createTenantUserSchema,
   resetTenantUserPassword, resetUserPasswordSchema,
+  listPlans, createPlan, createPlanSchema, updatePlan, updatePlanSchema,
+  assignPlan, assignPlanSchema, startTrial, startTrialSchema,
+  extendSubscription, extendSchema, cancelSubscription,
 } from './admin.controller.js';
 
 const router = Router();
@@ -29,5 +32,16 @@ router.patch('/tenants/:id/status', validate(setTenantStatusSchema), setTenantSt
 
 router.post('/tenants/:id/users', validate(createTenantUserSchema), createTenantUser);
 router.patch('/tenants/:id/users/:userId/password', validate(resetUserPasswordSchema), resetTenantUserPassword);
+
+// Plan catalog
+router.get('/plans', listPlans);
+router.post('/plans', validate(createPlanSchema), createPlan);
+router.patch('/plans/:id', validate(updatePlanSchema), updatePlan);
+
+// Per-tenant subscription lifecycle
+router.put('/tenants/:id/subscription', validate(assignPlanSchema), assignPlan);
+router.post('/tenants/:id/subscription/trial', validate(startTrialSchema), startTrial);
+router.post('/tenants/:id/subscription/extend', validate(extendSchema), extendSubscription);
+router.post('/tenants/:id/subscription/cancel', cancelSubscription);
 
 export default router;

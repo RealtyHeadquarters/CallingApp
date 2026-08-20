@@ -130,6 +130,7 @@ model Tenant {
   followUps      FollowUp[]
   notifications  Notification[]
   auditLogs      AuditLog[]
+  subscription   Subscription?
 
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
@@ -378,4 +379,78 @@ model Notification {
   @@index([userId, createdAt])
   @@index([tenantId])
   @@map("notifications")
+}
+
+// ── Subscriptions & Plans (SaaS Phase 3) ────────────────────────────────────
+
+enum PlanCode {
+  STARTER
+  BUSINESS
+  ENTERPRISE
+  CUSTOM
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE  // in grace period after currentPeriodEnd
+  EXPIRED   // past grace — read-only until renewed
+  CANCELLED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+// A plan is a global catalog entry (shared across tenants — NOT tenant-scoped).
+model SubscriptionPlan {
+  id             String    @id @default(cuid())
+  name           String
+  code           PlanCode  @default(CUSTOM)
+  priceMonthly   Int       @default(0) @map("price_monthly") // minor units (paise)
+  priceYearly    Int       @default(0) @map("price_yearly")
+  userLimit      Int?      @map("user_limit")        // null = unlimited
+  callLimit      Int?      @map("call_limit")         // per billing period
+  storageLimitMb Int?      @map("storage_limit_mb")
+  isActive       Boolean   @default(true) @map("is_active")
+  sortOrder      Int       @default(0) @map("sort_order")
+
+  subscriptions  Subscription[]
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("subscription_plans")
+}
+
+// One subscription per tenant. Limits are snapshotted so later plan edits don't
+// retroactively change an existing tenant.
+model Subscription {
+  id               String             @id @default(cuid())
+  tenantId         String             @unique @map("tenant_id")
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  planId           String?            @map("plan_id")
+  plan             SubscriptionPlan?  @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  status           SubscriptionStatus @default(TRIAL)
+  billingCycle     BillingCycle       @default(MONTHLY) @map("billing_cycle")
+
+  startDate        DateTime           @default(now()) @map("start_date")
+  currentPeriodEnd DateTime?          @map("current_period_end")
+  trialEndsAt      DateTime?          @map("trial_ends_at")
+  graceEndsAt      DateTime?          @map("grace_ends_at")
+  canceledAt       DateTime?          @map("canceled_at")
+
+  // Snapshot of the plan's limits at assignment time.
+  userLimit        Int?               @map("user_limit")
+  callLimit        Int?               @map("call_limit")
+  storageLimitMb   Int?               @map("storage_limit_mb")
+
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("subscriptions")
 }
