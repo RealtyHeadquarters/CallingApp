@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// CallingApp brand — modern indigo → violet → teal.
+/// ProCallingApp brand — modern blue → orange.
 class AppColors {
-  static const brand = Color(0xFF5B60F0);
-  static const brand600 = Color(0xFF3B3FB6);
-  static const brandDark = Color(0xFF0F1030);
-  static const violet = Color(0xFF8B5CF6);
-  static const accent = Color(0xFF10C5C0);
-  static const bg = Color(0xFFEEF0F8);
+  static const brand = Color(0xFF2F6BFF);
+  static const brand600 = Color(0xFF1D4ED8);
+  static const brandDark = Color(0xFF0A1533);
+  static const violet = Color(0xFF4F8BFF); // blue mid-tone
+  static const accent = Color(0xFFF97316); // orange
+  static const bg = Color(0xFFEEF1F8);
   static const surface = Colors.white;
   static const text = Color(0xFF14152E);
   static const text2 = Color(0xFF565A78);
@@ -26,7 +26,7 @@ class AppColors {
   static const brandGradientSoft = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFF6367F2), violet],
+    colors: [Color(0xFF2F6BFF), Color(0xFF4F8BFF)],
   );
 }
 
