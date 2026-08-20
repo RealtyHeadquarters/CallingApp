@@ -505,3 +505,15 @@ table.data td { border-bottom: 1px solid rgba(255,255,255,0.5); }
   box-shadow: var(--shadow) !important;
 }
 .recharts-text { fill: var(--text-3); }
+
+/* Subscription grace-period banner */
+.grace-banner {
+  background: rgba(249, 115, 22, 0.14);
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  color: #b45309;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}

@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { initials, titleCase } from '../lib/format.js';
 import NotificationBell from './NotificationBell.jsx';
 import BrandMark from './BrandMark.jsx';
+import { GraceBanner } from './SubscriptionGate.jsx';
 
 // Sidebar navigation (spec §43). Some items are admin/manager only.
 const NAV = [
@@ -13,11 +14,13 @@ const NAV = [
   { to: '/analytics', label: 'Analytics', ico: '📊', roles: ['ADMIN', 'MANAGER'] },
   { to: '/users', label: 'Users', ico: '👥', roles: ['ADMIN', 'MANAGER'] },
   { to: '/teams', label: 'Teams', ico: '🏢', roles: ['ADMIN', 'MANAGER'] },
+  { to: '/subscription', label: 'Subscription', ico: '💳', roles: ['ADMIN'] },
 ];
 
 const TITLES = {
   '/': 'Dashboard', '/leads': 'Leads / Clients', '/calls': 'Call Report',
   '/follow-ups': 'Follow-ups', '/analytics': 'Analytics', '/users': 'Users', '/teams': 'Teams',
+  '/subscription': 'Subscription & Billing',
 };
 
 export default function Layout({ children }) {
@@ -63,7 +66,7 @@ export default function Layout({ children }) {
             <div className="avatar">{initials(user?.name)}</div>
           </div>
         </header>
-        <main className="content">{children}</main>
+        <main className="content"><GraceBanner />{children}</main>
       </div>
     </div>
   );

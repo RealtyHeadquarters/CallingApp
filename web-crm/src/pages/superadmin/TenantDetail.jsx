@@ -5,18 +5,27 @@ import { Loading, Modal } from '../../components/ui.jsx';
 import TenantStatusBadge from '../../components/TenantStatusBadge.jsx';
 import { fmtDate, titleCase } from '../../lib/format.js';
 
+const money = (paise) => '₹' + Math.round((paise || 0) / 100).toLocaleString('en-IN');
+const limit = (n) => (n == null ? 'Unlimited' : Number(n).toLocaleString('en-IN'));
+const SUB_STATE = {
+  TRIAL: '#2f6bff', ACTIVE: '#0f9d6e', GRACE: '#ea580c', EXPIRED: '#e11d48', CANCELLED: '#e11d48', NONE: '#64748b',
+};
+
 export default function TenantDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [plans, setPlans] = useState([]);
   const [error, setError] = useState('');
   const [showAddUser, setShowAddUser] = useState(false);
   const [resetUser, setResetUser] = useState(null);
+  const [showSub, setShowSub] = useState(false);
 
   const load = useCallback(() => {
     api.get(`/admin/tenants/${id}`).then((r) => setData(r.data)).catch((e) => setError(apiError(e)));
   }, [id]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { api.get('/admin/plans').then((r) => setPlans(r.data.data)).catch(() => {}); }, []);
 
   async function setStatus(next) {
     const verb = next === 'SUSPENDED' ? 'Suspend' : 'Activate';
@@ -59,6 +68,32 @@ export default function TenantDetail() {
         <div className="kcard orange"><div className="tile">⏰</div><div className="kbody"><div className="klabel">Follow-ups</div><div className="kvalue">{t.followUps}</div></div></div>
       </div>
 
+      {/* Subscription */}
+      <div className="section-head" style={{ marginTop: 22 }}>
+        <h2>Subscription</h2>
+        <button className="btn primary sm" onClick={() => setShowSub(true)}>Manage</button>
+      </div>
+      <div className="card card-pad">
+        {data.subscription ? (() => {
+          const s = data.subscription;
+          const color = SUB_STATE[s.state] || SUB_STATE.NONE;
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'center' }}>
+              <div>
+                <div className="muted" style={{ fontSize: 12 }}>Plan</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>{s.plan?.name || 'No plan'}</div>
+              </div>
+              <span style={{ padding: '4px 12px', borderRadius: 999, fontWeight: 600, color, background: `${color}18`, border: `1px solid ${color}55` }}>
+                {s.state}{s.daysLeft != null && ['TRIAL', 'ACTIVE', 'GRACE'].includes(s.state) ? ` · ${s.daysLeft}d left` : ''}
+              </span>
+              <div><div className="muted" style={{ fontSize: 12 }}>Ends</div><div>{s.endsAt ? fmtDate(s.endsAt) : '—'}</div></div>
+              <div><div className="muted" style={{ fontSize: 12 }}>Billing</div><div>{titleCase(s.billingCycle || '—')}</div></div>
+              <div><div className="muted" style={{ fontSize: 12 }}>Limits</div><div>{limit(s.limits?.users)} users · {limit(s.limits?.calls)} calls</div></div>
+            </div>
+          );
+        })() : <div className="muted">No subscription. Click Manage to assign a plan or trial.</div>}
+      </div>
+
       <div className="section-head" style={{ marginTop: 22 }}>
         <h2>Users</h2>
         <button className="btn primary sm" onClick={() => setShowAddUser(true)}>+ Add User</button>
@@ -86,7 +121,64 @@ export default function TenantDetail() {
 
       {showAddUser && <AddUserModal tenantId={id} onClose={() => setShowAddUser(false)} onSaved={() => { setShowAddUser(false); load(); }} />}
       {resetUser && <ResetPasswordModal tenantId={id} user={resetUser} onClose={() => setResetUser(null)} onSaved={() => setResetUser(null)} />}
+      {showSub && <ManageSubscriptionModal tenantId={id} plans={plans} current={data.subscription} onClose={() => setShowSub(false)} onSaved={() => { setShowSub(false); load(); }} />}
     </>
+  );
+}
+
+function ManageSubscriptionModal({ tenantId, plans, current, onClose, onSaved }) {
+  const [planId, setPlanId] = useState(current?.plan?.id || plans[0]?.id || '');
+  const [cycle, setCycle] = useState(current?.billingCycle || 'MONTHLY');
+  const [trialDays, setTrialDays] = useState(14);
+  const [extendDays, setExtendDays] = useState(30);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function act(fn) {
+    setBusy(true); setError('');
+    try { await fn(); onSaved(); }
+    catch (err) { setError(apiError(err)); } finally { setBusy(false); }
+  }
+
+  return (
+    <Modal title="Manage Subscription" onClose={onClose} footer={<button className="btn" onClick={onClose}>Close</button>}>
+      {error && <div className="error-text">{error}</div>}
+
+      <div className="section-head" style={{ marginTop: 0 }}><h2 style={{ fontSize: 14 }}>Assign / renew plan</h2></div>
+      <div className="row-gap" style={{ gap: 12 }}>
+        <div className="field" style={{ flex: 2 }}>
+          <label>Plan</label>
+          <select className="select" value={planId} onChange={(e) => setPlanId(e.target.value)}>
+            {plans.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div className="field" style={{ flex: 1 }}>
+          <label>Billing</label>
+          <select className="select" value={cycle} onChange={(e) => setCycle(e.target.value)}>
+            <option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option>
+          </select>
+        </div>
+      </div>
+      <button className="btn primary" disabled={busy || !planId} onClick={() => act(() => api.put(`/admin/tenants/${tenantId}/subscription`, { planId, billingCycle: cycle }))}>Assign plan (Active)</button>
+
+      <div className="section-head"><h2 style={{ fontSize: 14 }}>Trial</h2></div>
+      <div className="row-gap" style={{ gap: 12, alignItems: 'flex-end' }}>
+        <div className="field" style={{ flex: 1 }}><label>Trial days</label><input className="input" type="number" min="1" value={trialDays} onChange={(e) => setTrialDays(e.target.value)} /></div>
+        <button className="btn" disabled={busy} onClick={() => act(() => api.post(`/admin/tenants/${tenantId}/subscription/trial`, { trialDays: Number(trialDays), planId: planId || undefined }))}>Start trial</button>
+      </div>
+
+      <div className="section-head"><h2 style={{ fontSize: 14 }}>Extend</h2></div>
+      <div className="row-gap" style={{ gap: 12, alignItems: 'flex-end' }}>
+        <div className="field" style={{ flex: 1 }}><label>Extra days</label><input className="input" type="number" min="1" value={extendDays} onChange={(e) => setExtendDays(e.target.value)} /></div>
+        <button className="btn" disabled={busy} onClick={() => act(() => api.post(`/admin/tenants/${tenantId}/subscription/extend`, { days: Number(extendDays) }))}>Extend period</button>
+      </div>
+
+      <div className="section-head"><h2 style={{ fontSize: 14 }}>Danger</h2></div>
+      <button className="btn" style={{ color: 'var(--red)' }} disabled={busy}
+        onClick={() => { if (window.confirm('Cancel this subscription? The tenant becomes read-only (data preserved).')) act(() => api.post(`/admin/tenants/${tenantId}/subscription/cancel`)); }}>
+        Cancel subscription
+      </button>
+    </Modal>
   );
 }
 

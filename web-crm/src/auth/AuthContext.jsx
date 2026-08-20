@@ -5,6 +5,7 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,7 +16,7 @@ export function AuthProvider({ children }) {
     }
     api
       .get('/auth/me')
-      .then((res) => setUser(res.data.user))
+      .then((res) => { setUser(res.data.user); setSubscription(res.data.subscription || null); })
       .catch(() => localStorage.removeItem('token'))
       .finally(() => setLoading(false));
   }, []);
@@ -24,17 +25,19 @@ export function AuthProvider({ children }) {
     const res = await api.post('/auth/login', { identifier, password });
     localStorage.setItem('token', res.data.token);
     setUser(res.data.user);
+    setSubscription(res.data.subscription || null);
     return res.data.user;
   }
 
   function logout() {
     localStorage.removeItem('token');
     setUser(null);
+    setSubscription(null);
     location.href = '/login';
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, subscription, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
