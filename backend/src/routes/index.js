@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import authRoutes from '../modules/auth/auth.routes.js';
+import adminRoutes from '../modules/admin/admin.routes.js';
 import userRoutes from '../modules/users/users.routes.js';
 import teamRoutes from '../modules/teams/teams.routes.js';
 import leadRoutes from '../modules/leads/leads.routes.js';
@@ -14,6 +15,7 @@ import webhookRoutes from '../modules/webhooks/webhooks.routes.js';
 const router = Router();
 
 router.use('/auth', authRoutes);
+router.use('/admin', adminRoutes);
 router.use('/users', userRoutes);
 router.use('/teams', teamRoutes);
 router.use('/leads', leadRoutes);

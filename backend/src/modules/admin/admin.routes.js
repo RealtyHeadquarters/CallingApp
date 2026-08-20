@@ -1,0 +1,33 @@
+import { Router } from 'express';
+import { authenticate } from '../../middleware/auth.js';
+import { requireRole } from '../../middleware/rbac.js';
+import { validate } from '../../middleware/validate.js';
+import {
+  platformStats,
+  listTenants, listTenantsQuery,
+  getTenant,
+  createTenant, createTenantSchema,
+  updateTenant, updateTenantSchema,
+  setTenantStatus, setTenantStatusSchema,
+  createTenantUser, createTenantUserSchema,
+  resetTenantUserPassword, resetUserPasswordSchema,
+} from './admin.controller.js';
+
+const router = Router();
+
+// Platform-owner surface. Every route requires the SUPER_ADMIN role; this is the
+// only place tenant scoping is intentionally bypassed.
+router.use(authenticate, requireRole('SUPER_ADMIN'));
+
+router.get('/stats', platformStats);
+
+router.get('/tenants', validate(listTenantsQuery, 'query'), listTenants);
+router.post('/tenants', validate(createTenantSchema), createTenant);
+router.get('/tenants/:id', getTenant);
+router.patch('/tenants/:id', validate(updateTenantSchema), updateTenant);
+router.patch('/tenants/:id/status', validate(setTenantStatusSchema), setTenantStatus);
+
+router.post('/tenants/:id/users', validate(createTenantUserSchema), createTenantUser);
+router.patch('/tenants/:id/users/:userId/password', validate(resetUserPasswordSchema), resetTenantUserPassword);
+
+export default router;
