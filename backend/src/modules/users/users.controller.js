@@ -122,6 +122,32 @@ export const deactivateUser = asyncHandler(async (req, res) => {
   res.json({ user });
 });
 
+// Permanently delete a user and all their activity data. Cascade (schema) removes
+// their calls, follow-ups, notifications & reset tokens; their leads become
+// unassigned (assignedUserId → null) rather than deleted, and audit logs are kept
+// with a null user. Irreversible.
+export const deleteUserPermanent = asyncHandler(async (req, res) => {
+  if (req.params.id === req.user.id) throw ApiError.badRequest('You cannot delete your own account');
+
+  const target = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, name: true } });
+  if (!target) throw ApiError.notFound('User not found');
+
+  const [calls, followUps] = await Promise.all([
+    prisma.call.count({ where: { userId: target.id } }),
+    prisma.followUp.count({ where: { userId: target.id } }),
+  ]);
+
+  await prisma.user.delete({ where: { id: target.id } });
+
+  recordAudit(req, {
+    action: 'DELETE_PERMANENT',
+    entityType: 'User',
+    entityId: target.id,
+    description: `Permanently deleted ${target.name} (${calls} calls, ${followUps} follow-ups removed)`,
+  });
+  res.json({ success: true, deleted: { calls, followUps } });
+});
+
 // Agents update their own presence (spec §37).
 export const agentStatusSchema = z.object({ agentStatus: z.enum(AGENT_STATUSES) });
 

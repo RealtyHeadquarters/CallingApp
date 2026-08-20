@@ -6,7 +6,7 @@ import {
   listUsers, listUsersQuery, getUser,
   createUser, createUserSchema,
   updateUser, updateUserSchema,
-  deactivateUser,
+  deactivateUser, deleteUserPermanent,
   updateMyStatus, agentStatusSchema,
   updateMe, updateMeSchema,
 } from './users.controller.js';
@@ -23,6 +23,7 @@ router.get('/', requireRole('ADMIN', 'MANAGER'), validate(listUsersQuery, 'query
 router.get('/:id', requireRole('ADMIN', 'MANAGER'), getUser);
 router.post('/', requireRole('ADMIN'), validate(createUserSchema), createUser);
 router.patch('/:id', requireRole('ADMIN'), validate(updateUserSchema), updateUser);
+router.delete('/:id/permanent', requireRole('ADMIN'), deleteUserPermanent);
 router.delete('/:id', requireRole('ADMIN'), deactivateUser);
 
 export default router;

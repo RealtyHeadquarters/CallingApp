@@ -30,8 +30,24 @@ export default function Users() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api.get('/teams').then((r) => setTeams(r.data.data)).catch(() => {}); }, []);
 
+  // Permanent hard delete — removes the user and all their calls/follow-ups/notifications.
+  async function deleteUser(u) {
+    if (!window.confirm(
+      `⚠️ PERMANENTLY delete "${u.name}"?\n\n` +
+      `This removes the user AND ALL their calls, follow-ups and notifications from the entire system. ` +
+      `Their leads become unassigned. This CANNOT be undone.`
+    )) return;
+    try {
+      const r = await api.delete(`/users/${u.id}/permanent`);
+      const d = r.data?.deleted;
+      if (d) alert(`Deleted "${u.name}" — removed ${d.calls} calls and ${d.followUps} follow-ups.`);
+      load();
+    } catch (err) { setError(apiError(err)); }
+  }
+
+  // Soft deactivate (keeps data) — for temporarily disabling login without deleting.
   async function deactivate(u) {
-    if (!window.confirm(`Delete "${u.name}"? They will be deactivated and can no longer log in. Their call history stays intact for reports.`)) return;
+    if (!window.confirm(`Deactivate "${u.name}"? They can't log in but their data stays. (Use Delete to remove permanently.)`)) return;
     try { await api.delete(`/users/${u.id}`); load(); }
     catch (err) { setError(apiError(err)); }
   }
@@ -81,8 +97,9 @@ export default function Users() {
                         <div className="row-gap" style={{ gap: 6 }}>
                           <button className="btn sm" onClick={() => setEditUser(u)}>Edit</button>
                           {u.status === 'ACTIVE'
-                            ? <button className="btn sm" style={{ color: 'var(--red)' }} disabled={u.id === user.id} title={u.id === user.id ? "You can't delete yourself" : 'Deactivate user'} onClick={() => deactivate(u)}>Delete</button>
+                            ? <button className="btn sm" disabled={u.id === user.id} title="Disable login, keep data" onClick={() => deactivate(u)}>Deactivate</button>
                             : <button className="btn sm" style={{ color: 'var(--green)' }} onClick={() => reactivate(u)}>Reactivate</button>}
+                          <button className="btn sm" style={{ color: 'var(--red)' }} disabled={u.id === user.id} title={u.id === user.id ? "You can't delete yourself" : 'Delete permanently (removes all their data)'} onClick={() => deleteUser(u)}>Delete</button>
                         </div>
                       </td>
                     )}
