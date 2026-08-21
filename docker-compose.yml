@@ -1,0 +1,51 @@
+# ProCallingApp — full self-hosted stack (Postgres + API + Web CRM).
+# Usage:
+#   cp .env.selfhost.example .env.selfhost && edit it
+#   docker compose --env-file .env.selfhost up -d --build
+# Then open http://YOUR_SERVER_IP  (web + API on port 80).
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+    expose:
+      - "4000"
+
+  web:
+    build: ./web-crm
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"   # change to "8080:80" if port 80 is taken; for HTTPS see DEPLOY_SELFHOST.md
+
+volumes:
+  pgdata:
